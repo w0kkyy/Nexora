@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Nexora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Anton&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<!-- Telegram Mini Apps SDK -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!-- Firebase и модуль Auth -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ЭКРАН ПЕРВОНАЧАЛЬНОЙ ЗАГРУЗКИ САЙТА -->
+<div id="initialLoaderOverlay">
+  <div class="initial-loader-logo">Nexora</div>
+  <div class="initial-loader-spinner" id="initialLoaderSpinner"></div>
+  <div class="initial-loader-text" id="initialLoaderText">Загружаем сайт...</div>
+  <button type="button" id="initialLoaderRetryBtn" class="gb-send-btn" style="display:none; padding: 10px 22px;" onclick="location.reload()">Обновить страницу</button>
+</div>
+
+<!-- ОВЕРЛЕЙ ЗАГРУЗКИ ДЕЙСТВИЯ (отправка поста/видео) -->
+<div id="actionLoaderOverlay">
+  <div class="action-loader-box">
+    <div class="action-loader-spinner"></div>
+    <div class="action-loader-text" id="actionLoaderText">Загрузка...</div>
+  </div>
+</div>
+
+<!-- ОВЕРЛЕЙ БЛОКИРОВКИ (перма-бан) — перекрывает весь сайт, закрыть нельзя -->
+<div id="banOverlay">
+  <div class="ban-overlay-box">
+    <div class="ban-overlay-icon"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg></div>
+    <div class="ban-overlay-title">Доступ заблокирован</div>
+    <div class="ban-overlay-text">Администратор заблокировал ваш аккаунт на этом сайте.</div>
+    <div class="ban-overlay-reason" id="banOverlayReason" style="display:none;"></div>
+    <div class="ban-overlay-date" id="banOverlayDate" style="display:none;"></div>
+    <div class="ban-overlay-hint">Если считаете это ошибкой — напишите в поддержку, указав свой никнейм.</div>
+    <a href="https://t.me/ObshazhnyaApp_Bot" target="_blank" rel="noopener" class="gb-send-btn" style="text-decoration:none; display:inline-block; padding: 10px 22px; margin-top: 6px;">Написать в поддержку</a>
+  </div>
+</div>
+
+<!-- СКРЫТЫЙ ИНПУТ ДЛЯ АВАТАРКИ -->
+<input type="file" id="localAvatarFileInput" accept="image/*" style="display: none;" onchange="handleLocalAvatarFile(event)">
+
+<!-- НИЖНЕЕ МОБИЛЬНОЕ МЕНЮ (горизонтальный скролл, заменяет бургер) -->
+<nav class="mobile-bottom-nav" id="mobileBottomNav">
+  <button type="button" class="mbn-item" id="mbnPhotos" onclick="switchTab('photos')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    <span>Лента</span>
+  </button>
+
+  <button type="button" class="mbn-item" id="mbnVideos" onclick="switchTab('videos')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    <span>Видосы</span>
+  </button>
+
+  <button type="button" class="mbn-item mbn-item-plus" id="mbnNewPost" onclick="switchTab('newpost')" title="Создать пост">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <button type="button" class="mbn-item active" id="mbnGuestbook" onclick="switchTab('main')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    <span>Гостевая</span>
+  </button>
+
+  <button type="button" class="mbn-item" id="mbnSettings" onclick="toggleProfileSheet()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span class="mbn-notif-badge" id="mbnNotifBadge" style="display:none;">0</span>
+    <span>Профиль</span>
+  </button>
+
+  <button type="button" class="mbn-item" id="mbnGames" onclick="switchTab('games')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="6"/><line x1="7" y1="12" x2="9" y2="12"/><line x1="8" y1="11" x2="8" y2="13"/><circle cx="15" cy="10.5" r="1"/><circle cx="17" cy="13.5" r="1"/></svg>
+    <span>Игры</span>
+  </button>
+
+  <button type="button" class="mbn-item" id="mbnDm" onclick="switchTab('dm')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span>ДМ</span>
+  </button>
+</nav>
+
+<!-- ШТОРКА ПРОФИЛЯ (открывается кнопкой "Профиль" из нижнего мобильного меню) -->
+<div class="mps-overlay" id="mpsOverlay" onclick="if(event.target===this) closeProfileSheet()">
+  <div class="mps-sheet">
+    <div class="mps-handle"></div>
+
+    <button type="button" class="mps-item" onclick="closeProfileSheet(); openMyProfileModal();">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Мой профиль
+    </button>
+
+    <button type="button" class="mps-item" onclick="closeProfileSheet(); switchTab('settings');">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Настройки
+    </button>
+
+    <button type="button" class="mps-item" onclick="closeProfileSheet(); openSupportModal();">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Поддержка
+    </button>
+
+    <button type="button" class="mps-item mps-danger" onclick="closeProfileSheet(); logoutUser();">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Выйти из аккаунта
+    </button>
+  </div>
+</div>
+
+<!-- ВЕРХНЯЯ ШАПКА -->
+<header class="site-header">
+  <div class="header-center-group">
+    <button class="site-logo" onclick="switchTab('main')" title="На главную">
+      <img src="https://i.pinimg.com/736x/0f/19/d5/0f19d5a33d066c5cb332faeb8646994d.jpg" alt="Logo">
+    </button>
+
+    <nav class="top-nav-menu">
+      <a href="#" class="top-nav-link active" id="navMain" onclick="event.preventDefault(); switchTab('main')">Главная</a>
+      <a href="#" class="top-nav-link" id="navPhotos" onclick="event.preventDefault(); switchTab('photos')">Лента</a>
+      <a href="#" class="top-nav-link" id="navVideos" onclick="event.preventDefault(); switchTab('videos')">Видео</a>
+      <a href="#" class="top-nav-link" id="navGames" onclick="event.preventDefault(); switchTab('games')">Игры</a>
+      <a href="#" class="top-nav-link" id="navDm" onclick="event.preventDefault(); switchTab('dm')">ДМ</a>
+      <a href="#" class="top-nav-link" id="navNewPost" onclick="event.preventDefault(); switchTab('newpost')">Создать пост</a>
+    </nav>
+  </div>
+
+  <div class="top-right-controls">
+    <!-- Полноэкранный режим (в основном для мобильных) -->
+    <button class="nav-btn fullscreen-toggle-btn" id="fullscreenToggleBtn" onclick="toggleSiteFullscreen()" title="Полноэкранный режим">
+      <svg id="fullscreenEnterIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+      <svg id="fullscreenExitIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+    </button>
+
+    <!-- УМНЫЙ ПОИСК (кнопка-лупа, разворачивается по клику) -->
+    <div class="header-search" id="headerSearch">
+      <button type="button" class="search-toggle-btn" id="searchToggleBtn" onclick="event.stopPropagation(); toggleHeaderSearch();" title="Поиск">
+        <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+      <div class="search-wrapper" onclick="event.stopPropagation();">
+        <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="searchInput" name="site-smart-search-desktop" class="search-input" placeholder="Поиск..." autocomplete="off" data-lpignore="true" data-1p-ignore="true" oninput="handleSmartSearch(this.value)">
+        <!-- Иконка только для мобильной версии (стиль Uiverse by Smit-Prajapati), десктопная лупа выше не трогается -->
+        <svg class="search-icon-mobile" viewBox="0 0 24 24" aria-hidden="true">
+          <g><path d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.53.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"></path></g>
+        </svg>
+      </div>
+      <div class="smart-search-dropdown" id="smartSearchDropdown"></div>
+    </div>
+
+    <button class="nav-btn" id="themeToggleBtn" title="Сменить тему">
+      <svg id="moonIcon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg id="sunIcon" viewBox="0 0 24 24" style="display: none;">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+    </button>
+
+
+    <div class="notif-dropdown-container" id="notifDropdownContainer">
+      <button class="nav-btn notif-btn" id="notifBtn" title="Уведомления">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+      </button>
+      <div class="notif-dropdown" id="notifDropdown">
+        <div class="notif-dropdown-header">
+          <div class="notif-dropdown-title">Уведомления</div>
+          <button class="notif-markall-btn" id="notifMarkAllBtn" onclick="markAllNotificationsRead(event)" title="Отметить всё как прочитанное">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </button>
+        </div>
+        <div class="notif-dropdown-divider"></div>
+        <div class="notif-filter-row" id="notifFilterRow">
+          <button type="button" class="notif-filter-pill active" data-filter="all" onclick="setNotifFilter('all')">Все</button>
+          <button type="button" class="notif-filter-pill" data-filter="like" onclick="setNotifFilter('like')">Лайки</button>
+          <button type="button" class="notif-filter-pill" data-filter="comment" onclick="setNotifFilter('comment')">Комментарии</button>
+          <button type="button" class="notif-filter-pill" data-filter="subscribe" onclick="setNotifFilter('subscribe')">Подписки</button>
+          <button type="button" class="notif-filter-pill" data-filter="system" onclick="setNotifFilter('system')">Система</button>
+        </div>
+        <div class="notif-list" id="notifList">
+          <div class="notif-empty">Пока нет уведомлений</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ссылка на модалку подробного просмотра уведомления вынесена из хэдера ниже, см. после </header> -->
+
+    <div class="profile-dropdown-container">
+      <button class="nav-btn profile-btn" id="profileMenuBtn" title="Профиль">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </button>
+      
+      <div class="profile-dropdown" id="profileDropdown">
+        <div class="dropdown-header">
+          <div class="dropdown-avatar" id="dropdownAvatarBox">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div class="dropdown-username" id="dropdownUsernameText">Гость</div>
+        </div>
+        <div class="dropdown-divider"></div>
+
+        <div id="tgAccountSwitcherSection"></div>
+
+        <div id="authDropdownSection">
+          <a href="#" class="dropdown-item" onclick="event.preventDefault(); openLoginModal()">
+            <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            Войти
+          </a>
+          <a href="#" class="dropdown-item" onclick="event.preventDefault(); openRegisterModal()">
+            <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            Регистрация
+          </a>
+        </div>
+
+        <div class="dropdown-divider"></div>
+
+        <a href="#" class="dropdown-item" onclick="event.preventDefault(); openSupportModal()">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Поддержка
+        </a>
+        <a href="#" class="dropdown-item" onclick="event.preventDefault(); openSupportProjectModal()" style="color: #facc15;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          Поддержать проект
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- МОДАЛКА: ПОДРОБНЫЙ ПРОСМОТР ОДНОГО УВЕДОМЛЕНИЯ (полноэкранная).
+     Важно: лежит ВНЕ <header>, т.к. у .site-header есть backdrop-filter,
+     а backdrop-filter/filter создают новый containing block для position:fixed
+     у потомков — из-за этого модалка раньше сплющивалась в узкую полоску
+     внутри хэдера вместо экрана целиком. -->
+<div id="notifDetailModal" class="modal-overlay notif-detail-overlay">
+  <div class="notif-detail-card">
+    <div class="support-modal-header">
+      <div class="notif-detail-icon-badge">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </div>
+      <button class="support-close-btn" onclick="closeNotifDetailModal()">✕</button>
+    </div>
+    <div class="support-modal-title" id="notifDetailTitle" style="margin-bottom: 6px;">Уведомление</div>
+    <div class="notif-detail-time" id="notifDetailTime"></div>
+    <div class="notif-detail-body" id="notifDetailBody"></div>
+    <button class="notif-detail-ok-btn" onclick="closeNotifDetailModal()">Понятно</button>
+  </div>
+</div>
+
+<div id="errorToast" class="error-toast"></div>
+
+<!-- ПОЛНОЭКРАННАЯ РИЛС-МОДАЛКА -->
+<div id="viewPostModal" class="reels-modal-overlay">
+  <button class="reels-close-btn" onclick="closeViewPostModal()" title="Закрыть (Esc)">✕</button>
+
+  <div class="reels-edge-glow reels-edge-glow-left" id="reelsEdgeGlowLeft" onclick="reelsGoPrev()" title="Предыдущий пост"></div>
+  <div class="reels-edge-glow reels-edge-glow-right" id="reelsEdgeGlowRight" onclick="reelsGoNext()" title="Следующий пост"></div>
+
+  <div class="reels-nav-group reels-nav-group-prev" id="reelsPrevBtn">
+    <button class="reels-nav-btn" onclick="reelsGoPrev()" title="Предыдущий пост (←)">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <span class="reels-nav-label">Пред. пост</span>
+  </div>
+
+  <div class="reels-nav-group reels-nav-group-next" id="reelsNextBtn">
+    <button class="reels-nav-btn" onclick="reelsGoNext()" title="Следующий пост (→)">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </button>
+    <span class="reels-nav-label">След. пост</span>
+  </div>
+
+  <div class="reels-container" id="reelsContainer"></div>
+</div>
+
+<!-- ПОЛНОЭКРАННЫЙ ПРОСМОТР ФОТО АЛЬБОМА (открывается кликом по картинке в посте) -->
+<div id="albumLightbox" class="album-lightbox-overlay" onclick="closeAlbumLightbox()">
+  <button class="album-lightbox-close" onclick="closeAlbumLightbox()" title="Закрыть (Esc)">✕</button>
+  <div class="album-lightbox-nav prev" id="albumLightboxPrev" onclick="lightboxGoSlide(-1, event)">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+  </div>
+  <div class="album-lightbox-nav next" id="albumLightboxNext" onclick="lightboxGoSlide(1, event)">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+  </div>
+  <div class="album-lightbox-media" id="albumLightboxMedia" onclick="event.stopPropagation()"></div>
+  <div class="album-lightbox-counter" id="albumLightboxCounter"></div>
+</div>
+
+<!-- МОДАЛКА: CS2 QUIZ -->
+<div id="cs2QuizModal" class="modal-overlay">
+  <div class="game-inner-modal">
+    <div class="support-modal-header" style="margin-bottom: 12px;">
+      <div class="support-modal-title">CS2 Quiz & Trivia</div>
+      <button class="support-close-btn" onclick="closeCs2QuizModal()">✕</button>
+    </div>
+    <div id="quizContent" style="display: flex; flex-direction: column; gap: 12px; text-align: left;"></div>
+  </div>
+</div>
+
+<!-- МОДАЛКА: CYBER CLICKER -->
+<div id="cyberClickerModal" class="modal-overlay">
+  <div class="game-inner-modal">
+    <div class="support-modal-header" style="margin-bottom: 12px;">
+      <div class="support-modal-title">Cyber Clicker</div>
+      <button class="support-close-btn" onclick="closeCyberClickerModal()">✕</button>
+    </div>
+    <div style="font-size: 13.5px; color: var(--muted); margin-bottom: 16px;">Кликай по кибер-чипу, зарабатывай очки и покупай апгрейды!</div>
+    <div style="font-size: 28px; font-weight: 800; color: var(--accent); margin-bottom: 16px;" id="clickerScore">0 очков</div>
+    <div style="margin-bottom: 20px;">
+      <button onclick="handleCyberClick()" style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-dim)); border: 3px solid var(--accent); color: #fff; font-size: 18px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 0 25px var(--accent-glow); outline: none;">КЛИК</button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <button class="gb-send-btn" onclick="buyClickerUpgrade('auto')" id="upgradeAutoBtn" style="width: 100%;">Купить Auto-Clicker (+1/сек) — 50 очков</button>
+      <button class="gb-send-btn" onclick="buyClickerUpgrade('power')" id="upgradePowerBtn" style="width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--card-border);">Сила клика (+1 за клик) — 30 очков</button>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА: UFC FIGHTER SIMULATOR -->
+<div id="ufcSimulatorModal" class="modal-overlay">
+  <div class="game-inner-modal">
+    <div class="support-modal-header" style="margin-bottom: 12px;">
+      <div class="support-modal-title">UFC Fighter Simulator</div>
+      <button class="support-close-btn" onclick="closeUfcSimulatorModal()">✕</button>
+    </div>
+    <div style="font-size: 13.5px; color: var(--muted); margin-bottom: 14px;">Тренируй характеристики бойца и побеждай в октагоне!</div>
+    <div style="background: var(--input-bg); border-radius: 10px; padding: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; text-align: center; font-size: 13px;">
+      <div>Сила: <strong id="ufcPower" style="color:var(--accent);">10</strong></div>
+      <div>Выносливость: <strong id="ufcStamina" style="color:var(--accent);">10</strong></div>
+      <div>Победы: <strong id="ufcWins" style="color:#10b981;">0</strong></div>
+    </div>
+    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+      <button class="gb-send-btn" onclick="trainUfcStat('power')" style="flex: 1;">Качать силу</button>
+      <button class="gb-send-btn" onclick="trainUfcStat('stamina')" style="flex: 1;">Качать выносливость</button>
+    </div>
+    <button class="gb-send-btn" onclick="startUfcFight()" style="width: 100%; padding: 14px; background: #10b981; border-color: #10b981; font-size: 14px;">🔥 Выйти на бой за титул</button>
+    <div id="ufcFightLog" style="margin-top: 14px; font-size: 13px; color: var(--muted); min-height: 40px; text-align: center;">Ожидание боя...</div>
+  </div>
+</div>
+
+<!-- ОСТАЛЬНЫЕ МОДАЛКИ -->
+
+<!-- ХАБ АДМИН-ПАНЕЛИ: единая точка входа во все инструменты администратора -->
+<div id="adminPanelModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 420px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Админ-панель</div>
+      <button class="support-close-btn" onclick="closeAdminPanelModal()">✕</button>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button class="reaction-btn" style="justify-content:center; padding:13px; font-size:14px;" onclick="closeAdminPanelModal(); openReportsModal();">
+        Панель жалоб
+      </button>
+      <button class="reaction-btn" style="justify-content:center; padding:13px; font-size:14px; color:#facc15; border-color: rgba(250,204,21,0.4);" onclick="closeAdminPanelModal(); openSubsAdminModal();">
+        Выдача подписок
+      </button>
+      <button class="reaction-btn" style="justify-content:center; padding:13px; font-size:14px; color: var(--accent); border-color: rgba(59,130,246,0.4);" onclick="closeAdminPanelModal(); openNotifyAdminModal();">
+        Отправить уведомление всем
+      </button>
+      <button class="reaction-btn" style="justify-content:center; padding:13px; font-size:14px; color: var(--danger); border-color: rgba(239,68,68,0.4);" onclick="closeAdminPanelModal(); openBanAdminModal();">
+        Баны и таймауты
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА: РАССЫЛКА УВЕДОМЛЕНИЯ ВСЕМ (только админ) -->
+<div id="notifyAdminModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 460px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Уведомление всем пользователям</div>
+      <button class="support-close-btn" onclick="closeNotifyAdminModal()">✕</button>
+    </div>
+    <div class="support-info-box">Уведомление появится у всех в колокольчике в шапке и останется там, пока пользователь сам не отметит его прочитанным.</div>
+    <label class="form-label-txt">Заголовок</label>
+    <input type="text" id="broadcastNotifTitleInput" class="modal-input" placeholder="Например: Технические работы" maxlength="80" />
+    <label class="form-label-txt">Текст уведомления</label>
+    <textarea id="broadcastNotifInput" class="suggest-textarea" style="height:110px; margin-bottom:6px;" placeholder="Подробности, которые пользователь увидит при открытии уведомления..." maxlength="600" oninput="updateBroadcastCharCounter()"></textarea>
+    <div class="char-counter" id="broadcastCharCounter">0 / 600</div>
+    <button class="gb-send-btn" style="width:100%; padding:12px; margin-top:10px;" onclick="sendBroadcastNotification()">Отправить всем</button>
+  </div>
+</div>
+
+<!-- ПАНЕЛЬ ВЫДАЧИ ПОДПИСОК -->
+<div id="subsAdminModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 500px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Управление подписками</div>
+      <button class="support-close-btn" onclick="closeSubsAdminModal()">✕</button>
+    </div>
+    <div class="support-info-box">Найдите пользователя, чтобы выдать или забрать подписку.</div>
+    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+      <input type="text" id="subAdminSearchInput" placeholder="Никнейм или email пользователя..." style="flex:1; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 10px; color: var(--text); font-family: 'Onest', sans-serif; font-size: 13.5px; outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault(); adminSearchSubUsers();}">
+      <button class="reaction-btn" onclick="adminSearchSubUsers()">Найти</button>
+    </div>
+    <div id="subAdminResults" style="display:flex; flex-direction:column; gap:8px; max-height: 400px; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- ПАНЕЛЬ БАНОВ И ТАЙМАУТОВ -->
+<div id="banAdminModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 560px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Баны и таймауты</div>
+      <button class="support-close-btn" onclick="closeBanAdminModal()">✕</button>
+    </div>
+    <div class="support-info-box">Найдите пользователя, чтобы выдать таймаут на конкретное действие или забанить его навсегда. Перма-бан полностью закрывает пользователю доступ к сайту, пока вы его не разбаните.</div>
+    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+      <input type="text" id="banAdminSearchInput" placeholder="Никнейм или email пользователя..." style="flex:1; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 10px; color: var(--text); font-family: 'Onest', sans-serif; font-size: 13.5px; outline:none;" onkeydown="if(event.key==='Enter'){event.preventDefault(); adminSearchBanUsers();}">
+      <button class="reaction-btn" onclick="adminSearchBanUsers()">Найти</button>
+    </div>
+    <div id="banAdminResults" style="display:flex; flex-direction:column; gap:10px; max-height: 440px; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="reportsModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 650px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Панель жалоб модератора</div>
+      <button class="support-close-btn" onclick="closeReportsModal()">✕</button>
+    </div>
+    <div class="support-info-box">Здесь отображаются все жалобы пользователей на спам и оскорбления в гостевой книге.</div>
+
+    <div id="reportsBulkActions" style="display: none; gap: 10px; margin-bottom: 12px;">
+      <button class="reaction-btn" style="flex:1; justify-content:center;" onclick="approveAllReports()">Одобрить все</button>
+      <button class="reaction-btn" style="flex:1; justify-content:center; color: var(--danger); border-color: rgba(239,68,68,0.3);" onclick="deleteAllReportedMessages()">Удалить все</button>
+    </div>
+    <div id="reportsListContainer" style="display: flex; flex-direction: column; gap: 12px; max-height: 450px; overflow-y: auto;">
+      <div style="color: var(--muted); text-align: center; padding: 20px;">Загрузка жалоб...</div>
+    </div>
+  </div>
+</div>
+
+<div id="supportProjectModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 420px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Поддержать проект</div>
+      <button class="support-close-btn" onclick="closeSupportProjectModal()">✕</button>
+    </div>
+    <div class="support-info-box">Проект живёт благодаря вам. Оформите подписку или сделайте разовый донат — всё помогает.</div>
+    <div class="sp-choice-grid">
+      <button type="button" class="sp-choice-btn" style="color: #facc15; border-color: rgba(250,204,21,0.35);" onclick="closeSupportProjectModal(); openSubscriptionModal();">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9l4 2 4-6 4 6 4-2-2 10H4L2 9z"/></svg>
+        Купить подписку
+      </button>
+      <button type="button" class="sp-choice-btn" style="color: #f472b6; border-color: rgba(244,114,182,0.35);" onclick="closeSupportProjectModal(); openDonateModal();">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        Поддержать донатом
+      </button>
+    </div>
+    <a href="#" class="sp-top-link" onclick="event.preventDefault(); closeSupportProjectModal(); openTopDonatorsModal();">Смотреть топ-донатеров →</a>
+  </div>
+</div>
+
+<div id="topDonatorsModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 460px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Топ-донатеры</div>
+      <button class="support-close-btn" onclick="closeTopDonatorsModal()">✕</button>
+    </div>
+    <div class="support-info-box">Люди, которые поддержали проект и подтвердили это. Спасибо каждому! ❤</div>
+    <div id="topDonatorsListContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto;">
+      <div style="color: var(--muted); text-align: center; padding: 20px;">Загрузка...</div>
+    </div>
+  </div>
+</div>
+
+<div id="followListModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 420px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title" id="followModalUsername">@user</div>
+      <button class="support-close-btn" onclick="closeFollowModal()">✕</button>
+    </div>
+    <div class="ep-tabs-row follow-modal-tabs">
+      <button type="button" class="ep-tab active" id="followTabFollowing" onclick="switchFollowModalTab('following')">Подписки <span id="followTabFollowingCount">0</span></button>
+      <button type="button" class="ep-tab" id="followTabFollowers" onclick="switchFollowModalTab('followers')">Подписчики <span id="followTabFollowersCount">0</span></button>
+    </div>
+    <div class="follow-modal-search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="search" id="followModalSearchInput" class="search-input" placeholder="Поиск по имени или @нику" autocomplete="off" oninput="renderFollowModalList()">
+    </div>
+    <div id="followModalListContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto;">
+      <div style="color: var(--muted); text-align: center; padding: 24px;">Загрузка...</div>
+    </div>
+  </div>
+</div>
+
+<div id="accountSettingsModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 600px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Настройки аккаунта</div>
+      <button class="support-close-btn" onclick="closeAccountSettingsModal()">✕</button>
+    </div>
+
+    <div class="ep-tabs-row" style="margin-bottom: 18px;">
+      <button type="button" class="ep-tab active" id="asTabActivity" onclick="switchAccountSettingsTab('activity')">Активность</button>
+      <button type="button" class="ep-tab" id="asTabPassword" onclick="switchAccountSettingsTab('password')">Пароль</button>
+      <button type="button" class="ep-tab" id="asTabLogins" onclick="switchAccountSettingsTab('logins')">Входы</button>
+      <button type="button" class="ep-tab" id="asTabNotifs" onclick="switchAccountSettingsTab('notifs')">Уведомления</button>
+      <button type="button" class="ep-tab" id="asTabBlacklist" onclick="switchAccountSettingsTab('blacklist')">Чёрный список</button>
+    </div>
+
+    <div id="asPaneActivity">
+      <div class="support-info-box">Список ваших последних постов в ленте и сообщений в гостевой книге.</div>
+      <div id="activityHistoryList" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+        <div style="color: var(--muted); text-align: center; padding: 20px;">Загрузка...</div>
+      </div>
+    </div>
+
+    <div id="asPanePassword" style="display: none;">
+      <div class="support-info-box">Для безопасности аккаунта введите ваш текущий и новый пароль.</div>
+      <label class="form-label-txt">Текущий пароль</label>
+      <input type="password" id="currentPasswordInput" class="modal-input" placeholder="Введите текущий пароль..." />
+      <label class="form-label-txt">Новый пароль</label>
+      <input type="password" id="newPasswordInput" class="modal-input" placeholder="Минимум 6 символов..." />
+      <button class="gb-send-btn" style="width: 100%; padding: 12px; margin-top: 8px;" onclick="updatePasswordUser()">Обновить пароль</button>
+    </div>
+
+    <div id="asPaneLogins" style="display: none;">
+      <div class="support-info-box">Здесь отображается история успешных авторизаций и устройств, с которых производился вход в ваш аккаунт.</div>
+      <div id="loginLogsContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+        <div style="color: var(--muted); text-align: center; padding: 20px;">Загрузка логов...</div>
+      </div>
+    </div>
+
+    <div id="asPaneNotifs" style="display: none;">
+      <div class="support-info-box">Настройки синхронизируются с вашим аккаунтом и применяются на всех устройствах.</div>
+      <div class="settings-toggle-row">
+        <div class="settings-toggle-info">
+          <div class="settings-toggle-title">Уведомления о лайках</div>
+          <div class="settings-toggle-desc">Получать уведомления, когда кто-то оценивает ваши посты</div>
+        </div>
+        <button type="button" class="switch-toggle" id="notifSettingLikeToggle" onclick="toggleNotifSetting('likes')"><span class="switch-toggle-knob"></span></button>
+      </div>
+      <div class="settings-toggle-row">
+        <div class="settings-toggle-info">
+          <div class="settings-toggle-title">Уведомления о комментариях</div>
+          <div class="settings-toggle-desc">Получать уведомления о новых комментариях и ответах</div>
+        </div>
+        <button type="button" class="switch-toggle" id="notifSettingCommentToggle" onclick="toggleNotifSetting('comments')"><span class="switch-toggle-knob"></span></button>
+      </div>
+      <div class="settings-toggle-row">
+        <div class="settings-toggle-info">
+          <div class="settings-toggle-title">Уведомления о подписчиках</div>
+          <div class="settings-toggle-desc">Получать уведомления о новых подписчиках</div>
+        </div>
+        <button type="button" class="switch-toggle" id="notifSettingSubscribeToggle" onclick="toggleNotifSetting('subscribes')"><span class="switch-toggle-knob"></span></button>
+      </div>
+    </div>
+
+    <div id="asPaneBlacklist" style="display: none;">
+      <div class="support-info-box">Пользователи, которых вы заблокировали. Их посты и сообщения скрыты из вашей ленты. Разблокировать можно в любой момент.</div>
+      <div id="blacklistContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+        <div style="color: var(--muted); text-align: center; padding: 20px;">Список пуст</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="loginModal" class="modal-overlay">
+  <div class="support-modal">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Вход в аккаунт</div>
+      <button class="support-close-btn" onclick="closeLoginModal()">✕</button>
+    </div>
+    <label class="form-label-txt">Email</label>
+    <input type="email" id="loginEmail" class="modal-input" placeholder="name@example.com" />
+    <label class="form-label-txt">Пароль</label>
+    <input type="password" id="loginPassword" class="modal-input" placeholder="Введите пароль..." />
+    <button class="gb-send-btn" style="width: 100%; padding: 12px; margin-top: 8px;" onclick="loginUser()">Войти</button>
+    <div class="auth-or-divider">или</div>
+    <div class="tg-auth-wrap" id="tgAuthWrapLogin"></div>
+    <button type="button" class="twitch-auth-btn" onclick="loginWithTwitch()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4.5 2 3 5.5v14h5V22h3l3-2.5h4L23 15V2H4.5zM21 14l-3 3h-4l-3 2.5V17H6V4h15v10z"/><path d="M15.5 7h2v5h-2zm-5 0h2v5h-2z"/></svg>
+      Войти через Twitch
+    </button>
+    <div style="text-align: center; margin-top: 16px; font-size: 13px; color: var(--muted);">
+      Нет аккаунта? <a href="#" onclick="event.preventDefault(); closeLoginModal(); openRegisterModal();" style="color: var(--accent); text-decoration: none; font-weight: 600;">Зарегистрироваться</a>
+    </div>
+  </div>
+</div>
+
+<div id="registerModal" class="modal-overlay">
+  <div class="support-modal">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Регистрация аккаунта</div>
+      <button class="support-close-btn" onclick="closeRegisterModal()">✕</button>
+    </div>
+    <label class="form-label-txt">Никнейм</label>
+    <input type="text" id="regUsername" class="modal-input" placeholder="Придумайте никнейм..." />
+    <label class="form-label-txt">Email</label>
+    <input type="email" id="regEmail" class="modal-input" placeholder="name@example.com" />
+    <label class="form-label-txt">Пароль</label>
+    <input type="password" id="regPassword" class="modal-input" placeholder="Минимум 6 символов..." />
+    <button class="gb-send-btn" style="width: 100%; padding: 12px; margin-top: 8px;" onclick="registerUser()">Создать аккаунт</button>
+    <div class="auth-or-divider">или</div>
+    <div class="tg-auth-wrap" id="tgAuthWrapRegister"></div>
+    <button type="button" class="twitch-auth-btn" onclick="loginWithTwitch()">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4.5 2 3 5.5v14h5V22h3l3-2.5h4L23 15V2H4.5zM21 14l-3 3h-4l-3 2.5V17H6V4h15v10z"/><path d="M15.5 7h2v5h-2zm-5 0h2v5h-2z"/></svg>
+      Войти через Twitch
+    </button>
+    <div style="text-align: center; margin-top: 16px; font-size: 13px; color: var(--muted);">
+      Уже есть аккаунт? <a href="#" onclick="event.preventDefault(); closeRegisterModal(); openLoginModal();" style="color: var(--accent); text-decoration: none; font-weight: 600;">Войти</a>
+    </div>
+  </div>
+</div>
+
+<div id="editProfileModal" class="modal-overlay">
+  <div class="ep-modal">
+    <div class="ep-modal-header">
+      <div>
+        <div class="ep-modal-title">Редактирование профиля</div>
+        <div class="ep-modal-subtitle" id="epModalHandle">@профиль</div>
+      </div>
+      <button class="support-close-btn" onclick="closeEditProfileModal()">✕</button>
+    </div>
+
+    <div class="ep-tabs-row">
+      <button type="button" class="ep-tab active" id="epTabMain" onclick="switchEditProfileTab('main')">Основные</button>
+      <button type="button" class="ep-tab" id="epTabPrivacy" onclick="switchEditProfileTab('privacy')">Приватность</button>
+    </div>
+
+    <div class="ep-body" id="epPaneMain">
+      <div class="ep-layout">
+        <div class="ep-avatar-col">
+          <div class="ep-avatar-preview" id="editAvatarPreviewBox">
+            <span class="ep-avatar-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          </div>
+          <button type="button" class="ep-upload-btn" onclick="triggerLocalAvatarUpload()">Загрузить фото</button>
+          <div class="ep-avatar-hint">PNG, JPG · до 2 МБ · <span style="color:#facc15;">GIF — только Premium 👑</span></div>
+          <input type="text" id="editAvatarUrl" class="modal-input ep-url-input" placeholder="или ссылка на картинку..." oninput="updateEditAvatarPreview()" />
+        </div>
+
+        <div class="ep-fields-col">
+          <div class="ep-field-row">
+            <div class="ep-field">
+              <label class="form-label-txt">Никнейм</label>
+              <input type="text" id="editUsernameInput" class="modal-input" placeholder="Новый никнейм..." />
+            </div>
+            <div class="ep-field">
+              <label class="form-label-txt">Телефон / Контакт</label>
+              <input type="text" id="editPhoneInput" class="modal-input" placeholder="+7 (999) 000-00-00 или @username" />
+            </div>
+          </div>
+
+          <div class="ep-field">
+            <label class="form-label-txt">О себе</label>
+            <textarea id="editBioInput" class="suggest-textarea" style="height: 76px;" placeholder="Пара слов о себе..." maxlength="160"></textarea>
+          </div>
+
+          <div class="ep-field-row">
+            <div class="ep-field">
+              <label class="form-label-txt">Хештеги / Интересы</label>
+              <input type="text" id="editTagsInput" class="modal-input" placeholder="#it #gamer #dev #ufc" />
+            </div>
+            <div class="ep-field">
+              <label class="form-label-txt">День рождения</label>
+              <input type="text" id="editBirthdayInput" class="modal-input" placeholder="06 мая 2000 (26 лет)" />
+            </div>
+          </div>
+
+          <div id="nickColorSection" class="ep-field" style="display: none;">
+            <label class="form-label-txt">Цвет ника <span id="nickColorPlanHint" style="color: var(--muted); font-weight: 400;"></span></label>
+            <div id="nickColorSwatches" style="display: flex; gap: 10px; margin-bottom: 8px;"></div>
+            <input type="text" id="nickColorCustomInput" class="modal-input" placeholder="Свой цвет или градиент, напр. linear-gradient(90deg,#f00,#00f)" style="display: none;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ep-body" id="epPanePrivacy" style="display: none;">
+      <div class="ep-privacy-note" style="margin-bottom: 16px;">Управляйте тем, какую социальную информацию видят другие пользователи.</div>
+      <div class="settings-toggle-row">
+        <div class="settings-toggle-info">
+          <div class="settings-toggle-title">Подписки и подписчики</div>
+          <div class="settings-toggle-desc">Показывать счётчики и списки в профиле</div>
+        </div>
+        <button type="button" class="switch-toggle" id="privacyFollowStatsToggle" onclick="toggleProfilePrivacySetting('showFollowStats')"><span class="switch-toggle-knob"></span></button>
+      </div>
+      <div class="support-info-box" style="margin-top: 14px;">Скрытие отключает переход к спискам для других пользователей. Вы и администраторы по-прежнему их видите.</div>
+    </div>
+
+    <div class="ep-footer">
+      <button class="gb-send-btn" style="width: 100%; padding: 12px;" onclick="saveProfileChanges()">Сохранить изменения</button>
+    </div>
+  </div>
+</div>
+
+<div id="rulesModal" class="modal-overlay">
+  <div class="rules-modal">
+    <div class="support-modal-header">
+      <div class="support-modal-title" style="font-size: 14.5px; letter-spacing: 0.3px;">Условия использования и правила платформы</div>
+      <button class="support-close-btn" onclick="closeRulesModal()">✕</button>
+    </div>
+    <div class="rules-meta" style="margin-bottom: 6px;">Обновлено: 9 февраля 2026 года</div>
+    <div class="rules-meta" style="margin-bottom: 16px;">Контакт: <a href="https://t.me/Discoragen" target="_blank" style="color: inherit; text-decoration: none;">@Discoragen</a></div>
+    
+    <p class="rules-intro">Сайт является независимой некоммерческой платформой для обмена медиаконтентом и общения пользователей.</p>
+    
+    <h4 class="rules-sec-title">1. Общие положения</h4>
+    <ul class="rules-list">
+      <li>1.1. Используя данный сайт, загружая медиафайлы или регистрируя аккаунт, вы подтверждаете свое полное согласие с настоящими правилами.</li>
+      <li>1.2. Администрация оставляет за собой право в любое время изменять, дополнять или удалять пункты правил без предварительного уведомления пользователей.</li>
+    </ul>
+
+    <h4 class="rules-sec-title">2. Правила размещения контента</h4>
+    <ul class="rules-list">
+      <li>2.1. Весь контент и видео, которые вы загружаете и публикуете, создаются вами или используются на законных основаниях. Всю ответственность за размещенные материалы несет исключительно пользователь.</li>
+      <li>2.2. Запрещена публикация материалов, нарушающих авторские права третьих лиц, содержащих вредоносное ПО, вирусы или эксплойты.</li>
+      <li>2.3. Запрещено распространение спама, навязчивой рекламы, фишинговых ссылок, а также вредоносного или дестабилизирующего скриптового кода.</li>
+      <li>2.4. Запрещены материалы 18+, пропаганда насилия, жестокости, употребления запрещенных веществ и любые формы экстремизма или дискриминации.</li>
+    </ul>
+
+    <h4 class="rules-sec-title">3. Права и ответственность администрации</h4>
+    <ul class="rules-list">
+      <li>3.1. Администрация не несет ответственности за содержание пользовательских публикаций, возможную потерю данных или любые убытки, возникшие в ходе использования сервиса.</li>
+      <li>3.2. Администрация и модераторы имеют право без предварительного предупреждения и объяснения причин удалять любые файлы, сообщения или блокировать учетные записи при нарушении данных правил.</li>
+    </ul>
+
+    <button class="gb-send-btn" style="width: 100%; padding: 14px; margin-top: 15px; font-size: 13px; text-align: center;" onclick="closeRulesModal()">Закрыть</button>
+  </div>
+</div>
+
+<!-- МОДАЛКА ПОДПИСКИ (Premium / Lite) -->
+<div id="subscriptionModal" class="modal-overlay">
+  <div class="sub-modal-box">
+    <img class="sub-char-img sub-char-left" src="characters/char_left.webp" alt="">
+    <div class="sub-modal-inner">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Подписка</div>
+      <button class="support-close-btn" onclick="closeSubscriptionModal()">✕</button>
+    </div>
+
+    <!-- ШАГ 1: выбор тарифа -->
+    <div id="subStepPlans">
+      <div class="sub-hero">
+        <h2>Стань <b>Premium</b> или <b>Lite</b></h2>
+        <p>Выделяйся в гостевой книге и получай бонусы каждый месяц</p>
+      </div>
+
+      <div class="sub-plans-grid">
+        <div class="sub-plan-card lite">
+          <div class="sub-plan-title">LITE</div>
+          <div class="sub-plan-sub">Базовые привилегии</div>
+          <ul class="sub-feature-list">
+            <li><span class="chk">✓</span> Значок ✓ рядом с ником</li>
+            <li><span class="chk">✓</span> Цвет ника — выбор из 3 базовых цветов</li>
+            <li><span class="chk">✓</span> Кулдаун в «Коробке секретов» — 1 минута</li>
+          </ul>
+          <div class="sub-plan-price">132 ₽ <span>/ месяц</span></div>
+          <div class="sub-buy-row">
+            <button class="sub-buy-btn" onclick="selectSubPlan('lite', 132)">Купить Lite</button>
+            <button class="sub-gift-btn" id="subGiftLiteBtn" title="Подарить пользователю (админ)" onclick="adminGiftFromSubModal('lite')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg></button>
+          </div>
+        </div>
+
+        <div class="sub-plan-card premium">
+          <div class="sub-tag">РЕКОМЕНДУЕМ</div>
+          <div class="sub-plan-title">PREMIUM</div>
+          <div class="sub-plan-sub">Максимум привилегий</div>
+          <ul class="sub-feature-list">
+            <li><span class="chk">✓</span> Золотая корона + свечение ника</li>
+            <li><span class="chk">✓</span> Любой цвет ника или градиент</li>
+            <li><span class="chk">✓</span> Без ожидания в «Коробке секретов»</li>
+            <li><span class="chk">✓</span> Приоритетная модерация ваших сообщений</li>
+            <li><span class="chk">✓</span> GIF-аватарки и рамка вокруг аватара</li>
+          </ul>
+          <div class="sub-plan-price">287 ₽ <span>/ месяц</span></div>
+          <div class="sub-buy-row">
+            <button class="sub-buy-btn" onclick="selectSubPlan('premium', 287)">Купить Premium</button>
+            <button class="sub-gift-btn" id="subGiftPremiumBtn" title="Подарить пользователю (админ)" onclick="adminGiftFromSubModal('premium')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path></svg></button>
+          </div>
+        </div>
+      </div>
+      <div style="font-size: 11px; color: var(--muted); text-align: center; margin-top: 6px;">Оплата — добровольный перевод. Подписка активируется вручную после проверки платежа.</div>
+    </div>
+
+    <!-- ШАГ 2: оплата -->
+    <div id="subStepPay" style="display: none;">
+      <div class="donate-warning-box">
+        <div class="icon"></div>
+        <div>Вы выбрали тариф <b id="subChosenPlanText"></b>. Переведите сумму через DonationAlerts, затем вернитесь и нажмите «Я оплатил(а)» — мы включим подписку вручную после проверки.</div>
+      </div>
+      <div class="donate-sbp-box" style="text-align: center;">
+        <a href="https://www.donationalerts.com/r/d1scoragen" target="_blank" rel="noopener" class="gb-send-btn" style="display: block; width: 100%; padding: 14px; font-size: 14px; text-decoration: none; margin-top: 6px; box-sizing: border-box;">Перейти к оплате</a>
+      </div>
+      <div style="display: flex; gap: 10px; margin-top: 14px;">
+        <button class="gb-send-btn" style="flex: 1; padding: 12px; font-size: 13px; background: transparent; border: 1px solid var(--card-border); color: var(--text);" onclick="backToSubPlans()">Назад</button>
+        <button class="gb-send-btn" style="flex: 1; padding: 12px; font-size: 13px;" onclick="confirmSubPaid()">Я оплатил(а)</button>
+      </div>
+    </div>
+    </div>
+    <img class="sub-char-img sub-char-right" src="characters/awp_character.webp" alt="">
+  </div>
+</div>
+
+<div id="supportModal" class="modal-overlay">
+  <div class="support-modal">
+    <div class="support-modal-header">
+      <div class="support-modal-title">Нашли баг или нужна помощь?</div>
+      <button class="support-close-btn" onclick="closeSupportModal()">✕</button>
+    </div>
+    <div class="support-info-box">Если вам нужна помощь или вы заметили ошибку на сайте, пожалуйста, свяжитесь с нами.</div>
+    <a href="https://t.me/Discoragen" target="_blank" class="support-card-btn telegram">
+      <div class="support-icon-box">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.24.38-.49 1.07-.75 4.19-1.82 6.98-3.02 8.38-3.6 3.98-1.66 4.81-1.95 5.35-1.96.12 0 .38.03.55.17.14.12.18.28.2.4.02.13.01.27 0 .38z"/></svg>
+      </div>
+      <div class="support-btn-content">
+        <div class="support-btn-title">Связь в Telegram</div>
+        <div class="support-btn-desc">Написать в поддержку @Discoragen</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- МОДАЛКА ДОНАТА -->
+<div id="donateModal" class="modal-overlay">
+  <div class="support-modal" style="max-width: 480px;">
+    <div class="support-modal-header">
+      <div class="support-modal-title">❤Поддержать проект</div>
+      <button class="support-close-btn" onclick="closeDonateModal()">✕</button>
+    </div>
+
+    <!-- ШАГ 1: выбор суммы -->
+    <div id="donateStepAmount">
+      <div class="support-info-box">Сайт живёт и развивается благодаря вашей поддержке. Донат — дело добровольное, никто вас ни к чему не обязывает</div>
+
+      <div class="donate-amounts" id="donateAmountsGrid">
+        <button type="button" class="donate-amount-btn" onclick="selectDonateAmount(100, this)">100 ₽</button>
+        <button type="button" class="donate-amount-btn" onclick="selectDonateAmount(300, this)">300 ₽</button>
+        <button type="button" class="donate-amount-btn" onclick="selectDonateAmount(500, this)">500 ₽</button>
+        <button type="button" class="donate-amount-btn" onclick="selectDonateAmount(1000, this)">1000 ₽</button>
+        <button type="button" class="donate-amount-btn" onclick="selectDonateAmount(2000, this)">2000 ₽</button>
+        <button type="button" class="donate-amount-btn" onclick="selectDonateAmount('custom', this)">Своя сумма</button>
+      </div>
+
+      <input type="number" id="donateCustomAmountInput" class="donate-custom-input" placeholder="Введите сумму в ₽" min="1" style="display: none;">
+
+      <button class="gb-send-btn" style="width: 100%; padding: 12px; font-size: 13px;" onclick="proceedToDonateWarning()">Задонатить</button>
+    </div>
+
+    <!-- ШАГ 2: предупреждение -->
+    <div id="donateStepWarning" style="display: none;">
+      <div class="donate-warning-box">
+        <div class="icon"></div>
+        <div>Сейчас вы будете перенаправлены на QR-код для перевода доната <b id="donateWarningAmountText"></b>. Донат — это добровольное пожертвование, оно ни к чему вас не обязывает, и вы в любой момент можете отменить это действие.</div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="gb-send-btn" style="flex: 1; padding: 12px; font-size: 13px; background: transparent; border: 1px solid var(--card-border); color: var(--text);" onclick="backToDonateAmount()">Отмена</button>
+        <button class="gb-send-btn" style="flex: 1; padding: 12px; font-size: 13px;" onclick="proceedToDonateNickname()">Понятно, продолжить</button>
+      </div>
+    </div>
+
+    <!-- ШАГ 2.5: никнейм для топ-донатеров -->
+    <div id="donateStepNickname" style="display: none;">
+      <div class="support-info-box">Как вы хотите, чтобы ваш никнейм отображался в топ-донатерах? Можно имя, никнейм, инициалы — как удобно. Это необязательно.</div>
+      <input type="text" id="donateNicknameInput" class="donate-nickname-input" placeholder="Например: Anonymous_Cat" maxlength="40">
+      <div style="display: flex; gap: 10px;">
+        <button class="gb-send-btn" style="flex: 1; padding: 12px; font-size: 13px; background: transparent; border: 1px solid var(--card-border); color: var(--text);" onclick="backToDonateWarning()">Назад</button>
+        <button class="gb-send-btn" style="flex: 1; padding: 12px; font-size: 13px;" onclick="showDonateQr()">Продолжить</button>
+      </div>
+    </div>
+
+    <!-- ШАГ 3: QR и реквизиты -->
+    <div class="donate-qr-box" id="donateQrBox">
+
+      <!-- DonationAlerts -->
+      <div class="donate-sbp-box" style="text-align: center;">
+        <div class="donate-sbp-label" style="justify-content: center;">Перевод через DonationAlerts</div>
+        <a href="https://www.donationalerts.com/r/d1scoragen" target="_blank" rel="noopener" class="gb-send-btn" style="display: block; width: 100%; padding: 14px; font-size: 14px; text-decoration: none; margin-top: 12px; box-sizing: border-box;">Перейти к оплате</a>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 10px;">Откроется страница DonationAlerts — выберите удобный способ оплаты и укажите сумму.</div>
+
+        <div style="margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--card-border);">
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">Или отсканируйте QR-код камерой телефона:</div>
+          <a href="https://www.donationalerts.com/r/d1scoragen" target="_blank" rel="noopener">
+            <img src="dalink-qr-code.png" alt="QR-код DonationAlerts" style="width: 160px; height: 160px; border-radius: 10px; background: #fff; padding: 6px;">
+          </a>
+        </div>
+      </div>
+
+      <div style="font-size: 11px; color: var(--muted); margin-top: 12px;">После оплаты вернитесь на эту страницу и нажмите кнопку ниже, чтобы мы отметили ваш донат.</div>
+
+      <button class="gb-send-btn" style="width: 100%; padding: 12px; font-size: 13px; margin-top: 14px;" onclick="confirmDonateDone()">Я перевёл(а), готово</button>
+      <div style="font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center;">Остались вопросы? Пишите в Telegram — <a href="https://t.me/Discoragen" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: 700;">@Discoragen</a></div>
+    </div>
+  </div>
+</div>
+
+<div id="linkUploadModal" class="modal-overlay">
+  <div class="suggest-modal">
+    <div class="support-modal-header">
+      <div>
+        <div class="suggest-modal-subtitle">Файл больше 1 МБ</div>
+        <div class="support-modal-title">Ссылка на источник</div>
+      </div>
+      <button class="support-close-btn" onclick="closeLinkUploadModal()">✕</button>
+    </div>
+
+    <label class="form-label-txt">Файлы больше 1 МБ не хранятся у нас — вставь ссылку на файл (Google Диск, Яндекс Диск и т.д.), и пост будет вести по ней</label>
+    <input type="text" id="linkUploadInput" class="modal-input" placeholder="https://..." />
+
+    <button class="gb-send-btn" style="width: 100%; padding: 12px; font-size: 13px; margin-top: 12px;" onclick="confirmMediaLink()">Прикрепить ссылку</button>
+  </div>
+</div>
+
+<div id="suggestVideoModal" class="modal-overlay">
+  <div class="suggest-modal">
+    <div class="support-modal-header">
+      <div>
+        <div class="suggest-modal-subtitle">Предложка</div>
+        <div class="support-modal-title">Предложить видео</div>
+      </div>
+      <button class="support-close-btn" onclick="closeSuggestVideoModal()">✕</button>
+    </div>
+
+    <div class="suggest-preview-box" id="suggestPreviewBox">
+      <div class="suggest-preview-overlay">
+        <div class="suggest-preview-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div class="suggest-preview-text" id="suggestPreviewText">Превью видео появится здесь</div>
+      </div>
+    </div>
+
+    <label class="form-label-txt">Ссылка на видео (YouTube)</label>
+    <input type="text" id="suggestVideoUrl" class="modal-input" placeholder="https://www.youtube.com/watch?v=..." oninput="handleVideoUrlInput(this.value)" />
+
+    <label class="form-label-txt">Категория</label>
+    <div class="categories-select-grid" id="suggestCategoryGrid">
+      <button class="category-tag selected" onclick="selectSuggestCategory(this, 'Смешные')">Смешные</button>
+      <button class="category-tag" onclick="selectSuggestCategory(this, 'Трукрайм')">Трукрайм</button>
+      <button class="category-tag" onclick="selectSuggestCategory(this, 'Разоблачения')">Разоблачения</button>
+      <button class="category-tag" onclick="selectSuggestCategory(this, 'Трейлеры')">Трейлеры</button>
+      <button class="category-tag" onclick="selectSuggestCategory(this, 'Разное')">Разное</button>
+    </div>
+
+    <label class="form-label-txt">Комментарий [не обязательно]</label>
+    <textarea id="suggestVideoComment" class="suggest-textarea" placeholder="Добавить комментарий..." maxlength="50" oninput="document.getElementById('commentCharCount').textContent = this.value.length + '/50'"></textarea>
+    <div class="char-counter" id="commentCharCount">0/50</div>
+
+    <button class="gb-send-btn" style="width: 100%; padding: 12px; font-size: 13px;" onclick="submitVideoSuggestion()">Отправить</button>
+  </div>
+</div>
+
+<div class="main-container">
+
+  <!-- ГЛАВНАЯ СТРАНИЦА -->
+  <div id="mainPage" class="page-view">
+    <div class="community-header">
+      <h1 class="community-title">Nexora</h1>
+      <p class="community-desc">Общайтесь в гостевой книге и делитесь видео, фото и аудио в ленте!</p>
+    </div>
+
+    <!-- Тизер-блок -->
+    <div class="teaser-card">
+      <div class="teaser-badge">Тизер • Скоро</div>
+      <h3 class="teaser-title">🚀 Масштабное обновление </h3>
+      <p class="teaser-desc">Мы готовим новый мессенджер для более удобного общения! новые игры и функции уже в пути!</p>
+    </div>
+
+    <!-- СТАТИСТИКА -->
+    <div class="activity-section">
+      <div class="activity-card">
+        <div class="activity-value" id="statTotalUsers">0</div>
+        <div class="activity-label">Всего пользователей</div>
+      </div>
+      <div class="activity-card">
+        <div class="activity-value" id="statOnlineToday">1</div>
+        <div class="activity-label">Сегодня онлайн</div>
+      </div>
+      <div class="activity-card">
+        <div class="activity-value" id="statCommentsCount">0</div>
+        <div class="activity-label">Комментариев</div>
+      </div>
+      <div class="activity-card">
+        <div class="activity-value" id="statVideosCount">0</div>
+        <div class="activity-label">Видео</div>
+      </div>
+      <div class="activity-card">
+        <div class="activity-value" id="statGamesCount">3</div>
+        <div class="activity-label">Игры</div>
+      </div>
+      <div class="activity-card" style="cursor: pointer;" onclick="openAccountSettingsModal('activity')" title="Посмотреть историю активности">
+        <div class="activity-value" id="statViewsCount">1.4 тыс.</div>
+        <div class="activity-label">Просмотров</div>
+      </div>
+    </div>
+
+    <div class="guestbook-section">
+      <div class="gb-header">
+        <div class="gb-title">Guestbook </div>
+      </div>
+
+      <div class="gb-controls-bar">
+        <select id="sortSelect" class="sort-select">
+          <option value="newest">Сначала новые</option>
+          <option value="oldest">Сначала старые</option>
+          <option value="popular">🔥 По популярности (реакциям)</option>
+        </select>
+      </div>
+
+      <div class="gb-input-row">
+        <input type="text" id="gbInput" class="gb-input" placeholder="Войдите в аккаунт, чтобы писать в гостевой книге" maxlength="200" autocomplete="off" disabled />
+        <button class="gb-send-btn" id="gbSendBtn" disabled>Отправить</button>
+      </div>
+
+      <div id="gbMessages"></div>
+      <div id="gbShowMoreWrap" class="gb-show-more-wrap" style="display: none;">
+        <button type="button" class="gb-show-more-btn" id="gbShowMoreBtn" onclick="expandGuestbookMessages()">
+          Показать ещё <span id="gbShowMoreCount"></span>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- СТРАНИЦА ДРУЗЕЙ -->
+  <div id="friendsPage" class="page-view" style="display: none;">
+    <div class="community-header">
+      <h1 class="community-title">Поиск пользователей и друзья</h1>
+      <p class="community-desc">Ищите пользователей по юзернейму или почте, подписывайтесь и следите за активностью друзей!</p>
+    </div>
+
+    <div class="guestbook-section" style="margin-bottom: 20px;">
+      <div class="gb-header">
+        <div class="gb-title">Поиск пользователей</div>
+      </div>
+      <div class="gb-input-row">
+        <input type="text" id="userSearchInput" placeholder="Введите юзернейм, имя или email..." autocomplete="off" oninput="searchPlatformUsers(this.value)" />
+      </div>
+      <div id="userSearchResults" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 16px;">
+        <div style="color: var(--muted); text-align: center; padding: 20px; grid-column: 1/-1;">Введите запрос для поиска пользователей...</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;" id="friendsAndFeedGrid">
+      <div class="guestbook-section">
+        <div class="gb-header">
+          <div class="gb-title">Ваши друзья и подписки</div>
+        </div>
+        <div id="myFriendsList" style="display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto;">
+          <div style="color: var(--muted); text-align: center; padding: 20px;">Войдите в аккаунт, чтобы управлять друзьями</div>
+        </div>
+      </div>
+
+      <div class="guestbook-section">
+        <div class="gb-header">
+          <div class="gb-title">Лента активности друзей</div>
+        </div>
+        <div id="friendsActivityFeed" style="display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto;">
+          <div style="color: var(--muted); text-align: center; padding: 20px;">Здесь будет отображаться активность ваших друзей</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- СТРАНИЦА ДМ -->
+  <div id="dmPage" class="page-view" style="display: none;">
+    <div class="community-header">
+      <h1 class="community-title">Direct Messages (ДМ)</h1>
+      <p class="community-desc">Личные сообщения с пользователями платформы. Раздел находится в активной разработке!</p>
+    </div>
+    <div class="guestbook-section" style="text-align: center; padding: 60px 20px;">
+      <div style="margin-bottom: 16px; display: flex; justify-content: center;"><svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></div>
+      <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 20px; margin-bottom: 8px; color: var(--text);">Скоро здесь появятся личные сообщения</h3>
+      <p style="color: var(--muted); font-size: 14px; max-width: 420px; margin: 0 auto;">Функционал приватных чатов и обмена личными сообщениями находится в разработке и будет доступен совсем скоро.</p>
+    </div>
+  </div>
+
+  <!-- СТРАНИЦА СОЗДАТЬ ПОСТ -->
+  <div id="newPostPage" class="page-view" style="display: none;">
+    <div class="community-header">
+      <h1 class="community-title">Создать пост</h1>
+      <p class="community-desc">Загружайте видео, фото или аудио в общую ленту платформы.</p>
+    </div>
+
+    <div class="guestbook-section newpost-card">
+      <div class="newpost-layout">
+        <div id="dropZone" class="newpost-dropzone" onclick="triggerNewPostFileInput()" ondragover="handleNewPostDragOver(event)" ondragleave="handleNewPostDragLeave(event)" ondrop="handleNewPostFileDrop(event)">
+          <div class="newpost-dropzone-icon">
+            <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          </div>
+          <div class="newpost-dropzone-title">Выберите видео, фото или аудио</div>
+          <div class="newpost-dropzone-hint">Или перетащите файл сюда · можно выбрать сразу несколько фото для альбома<br>Максимальный размер: 200 МБ</div>
+          <button type="button" class="gb-send-btn newpost-choose-btn">Выбрать файл(ы)</button>
+          <div id="newPostFileIndicator" class="newpost-file-indicator" style="display: none;"></div>
+        </div>
+        <input type="file" id="newPostFileInput" accept="image/*,video/*,audio/*" multiple style="display:none;" onchange="handleNewPostFileSelect(event)">
+
+        <div class="newpost-fields">
+          <div>
+            <label class="form-label-txt">Название публикации*</label>
+            <input type="text" id="newPostTitle" class="modal-input newpost-input" placeholder="Введите название..." />
+          </div>
+          <div>
+            <label class="form-label-txt">Описание</label>
+            <textarea id="newPostDesc" class="suggest-textarea newpost-textarea" placeholder="Добавьте описание файла или вставьте ссылку на видео..."></textarea>
+          </div>
+          <div>
+            <label class="form-label-txt">Тип доступа</label>
+            <div class="newpost-access-row">
+              <button type="button" class="category-tag selected newpost-access-btn" id="accessPubBtn" onclick="setAccessType('pub')">Опубликовать в ленту</button>
+              <button type="button" class="category-tag newpost-access-btn" id="accessLinkBtn" onclick="setAccessType('link')">Доступ по ссылке</button>
+            </div>
+            <div class="newpost-nsfw-toggle">
+              <button type="button" class="category-tag newpost-nsfw-btn" id="nsfwToggleBtn" onclick="toggleNsfwFlag()" title="Пост будет размыт цензурой, пока зритель не нажмёт «показать»">🔞 18+ контент (цензура)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="newpost-submit-wrap">
+        <button type="button" class="gb-send-btn newpost-submit-btn" onclick="submitNewPost()">Опубликовать</button>
+        <div class="newpost-rules-hint">
+          Публикуйте медиаконтент соблюдая <a href="#" onclick="event.preventDefault(); openRulesModal()" style="color: var(--accent); text-decoration: none;">правила сайта</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- СТРАНИЦА ЛЕНТЫ -->
+  <div id="photosPage" class="page-view" style="display: none;">
+    <div class="feed-filters-bar">
+      <div class="custom-dropdown" id="dropdownType">
+        <button class="custom-dropdown-btn" onclick="toggleCustomDropdown('dropdownTypeMenu', event)">
+          <span id="btnTypeLabel">Всё</span>
+          <span>▼</span>
+        </button>
+        <div class="custom-dropdown-menu" id="dropdownTypeMenu">
+          <div class="custom-dropdown-item active" onclick="selectFeedType('all', 'Всё', this)">Всё</div>
+          <div class="custom-dropdown-item" onclick="selectFeedType('image', 'Изображения', this)">Изображения</div>
+          <div class="custom-dropdown-item" onclick="selectFeedType('video', 'Видео', this)">Видео</div>
+          <div class="custom-dropdown-item" onclick="selectFeedType('audio', 'Аудио', this)">Аудио</div>
+        </div>
+      </div>
+
+      <div class="custom-dropdown" id="dropdownSort">
+        <button class="custom-dropdown-btn" onclick="toggleCustomDropdown('dropdownSortMenu', event)">
+          <span id="btnSortLabel">Лучшее</span>
+          <span>▼</span>
+        </button>
+        <div class="custom-dropdown-menu" id="dropdownSortMenu">
+          <div class="custom-dropdown-item active" onclick="selectFeedSort('best', 'Лучшее', this)">Лучшее</div>
+          <div class="custom-dropdown-item" onclick="selectFeedSort('newest', 'Новые', this)">Новые</div>
+          <div class="custom-dropdown-item" onclick="selectFeedSort('views', 'По просмотрам', this)">По просмотрам</div>
+          <div class="custom-dropdown-item" onclick="selectFeedSort('likes', 'По лайкам', this)">По лайкам</div>
+          <div class="custom-dropdown-item" onclick="selectFeedSort('comments', 'По комментариям', this)">По комментариям</div>
+        </div>
+      </div>
+
+      <div class="custom-dropdown" id="dropdownTime">
+        <button class="custom-dropdown-btn" onclick="toggleCustomDropdown('dropdownTimeMenu', event)">
+          <span id="btnTimeLabel">Сегодня</span>
+          <span>▼</span>
+        </button>
+        <div class="custom-dropdown-menu" id="dropdownTimeMenu">
+          <div class="custom-dropdown-item active" onclick="selectFeedTime('today', 'Сегодня', this)">Сегодня</div>
+          <div class="custom-dropdown-item" onclick="selectFeedTime('week', 'Неделя', this)">Неделя</div>
+          <div class="custom-dropdown-item" onclick="selectFeedTime('month', 'Месяц', this)">Месяц</div>
+          <div class="custom-dropdown-item" onclick="selectFeedTime('year', 'Год', this)">Год</div>
+          <div class="custom-dropdown-item" onclick="selectFeedTime('all_time', 'Всё время', this)">Всё время</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="photos-grid" id="photosGrid"></div>
+  </div>
+
+  <!-- СТРАНИЦА ВИДЕО -->
+  <div id="videosPage" class="page-view" style="display: none;">
+    <div class="videos-layout-container">
+      <div class="video-sidebar">
+        <div class="sidebar-title">Категории</div>
+        <div class="video-filter-bar" id="videoFilterBar">
+          <button class="video-filter-btn active" onclick="filterVideos('Рекомендуем', this)">
+            <span>⭐ Рекомендуем</span>
+            <span class="cat-count" id="count-rec">0</span>
+          </button>
+          <button class="video-filter-btn" onclick="filterVideos('Смешные', this)">
+            <span>Смешные</span>
+            <span class="cat-count" id="count-funny">0</span>
+          </button>
+          <button class="video-filter-btn" onclick="filterVideos('Трукрайм', this)">
+            <span>Трукрайм</span>
+            <span class="cat-count" id="count-truecrime">0</span>
+          </button>
+          <button class="video-filter-btn" onclick="filterVideos('Разоблачения', this)">
+            <span>Разоблачения</span>
+            <span class="cat-count" id="count-exposes">0</span>
+          </button>
+          <button class="video-filter-btn" onclick="filterVideos('Трейлеры', this)">
+            <span>Трейлеры</span>
+            <span class="cat-count" id="count-trailers">0</span>
+          </button>
+          <button class="video-filter-btn" onclick="filterVideos('Разное', this)">
+            <span>Разное</span>
+            <span class="cat-count" id="count-other">0</span>
+          </button>
+        </div>
+
+        <div class="sidebar-actions">
+          <button class="suggest-video-main-btn" onclick="openSuggestVideoModal()">
+            Предложить видео
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="videos-main-content">
+        <div class="videos-grid" id="videosGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- СТРАНИЦА ИГР -->
+  <!-- НАСТРОЙКИ (мобильная вкладка: уведомления, тема, вход — вместо отдельных кнопок в шапке) -->
+  <div id="settingsPage" class="page-view" style="display: none;">
+    <div class="community-header" style="text-align:left; padding: 16px 18px;">
+      <h1 class="community-title" style="font-size: 20px;">Настройки</h1>
+    </div>
+
+    <div class="guestbook-section">
+      <button type="button" class="settings-row-btn" onclick="event.stopPropagation(); toggleNotifDropdown()">
+        <span class="settings-row-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </span>
+        <span class="settings-row-label">Уведомления</span>
+        <span class="settings-row-badge" id="settingsNotifBadge" style="display:none;">0</span>
+      </button>
+
+      <button type="button" class="settings-row-btn" onclick="event.stopPropagation(); document.getElementById('themeToggleBtn').click();">
+        <span class="settings-row-icon">
+          <svg id="settingsThemeMoonIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg id="settingsThemeSunIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </span>
+        <span class="settings-row-label">Тема оформления</span>
+      </button>
+
+      <button type="button" class="settings-row-btn" onclick="event.stopPropagation(); handleMobileBottomNavAuth()">
+        <span class="settings-row-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        <span class="settings-row-label" id="settingsAuthLabel">Войти / Профиль</span>
+      </button>
+
+      <a href="https://t.me/ObshazhnyaApp_Bot" target="_blank" rel="noopener" class="settings-row-btn" style="text-decoration:none;">
+        <span class="settings-row-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.05 2.31 2.87 9.4c-1.24.5-1.23 1.19-.23 1.5l4.66 1.46 1.8 5.6c.22.6.36.85.75.85.3 0 .43-.14.6-.3l1.7-1.65 3.6 2.66c.66.37 1.14.18 1.3-.6l2.37-11.2c.24-1-.36-1.44-1.24-1.4zM9.6 13.86l7.6-6.53c.34-.28-.07-.42-.5-.16l-9.4 5.93-1.83-.6c-.4-.13-.4-.4.08-.6l7.14-2.75c.33-.13.63.08.5.6l-1.2 6.6c-.09.44-.35.55-.7.34l-1.94-1.43-.94.9c-.1.1-.19.19-.4.19z"/></svg>
+        </span>
+        <span class="settings-row-label">Telegram-бот</span>
+      </a>
+    </div>
+  </div>
+
+  <div id="gamesPage" class="page-view" style="display: none;">
+    <div class="games-header">
+      <h2 class="games-title">Игровой Раздел</h2>
+      <p class="games-subtitle">Каталог мини-игр и развлечений. Выбирайте игру и запускайте прямо в браузере!</p>
+    </div>
+
+    <div class="games-grid" id="gamesGrid">
+      <div class="game-card" data-title="cs2 quiz trivia викторина кс2">
+        <div class="game-thumb" style="background-image: url('https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80');">
+          <span class="game-badge">Доступно</span>
+        </div>
+        <div class="game-info">
+          <h3 class="game-name">CS2 Quiz & Trivia</h3>
+          <p class="game-desc">Проверь свои знания скинов, карт и киберспорта CS2.</p>
+          <button class="game-play-btn" onclick="openCs2QuizModal()">Запустить</button>
+        </div>
+      </div>
+
+      <div class="game-card" data-title="cyber clicker кликер кибер">
+        <div class="game-thumb" style="background-image: url('https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=600&q=80');">
+          <span class="game-badge">Доступно</span>
+        </div>
+        <div class="game-info">
+          <h3 class="game-name">Cyber Clicker</h3>
+          <p class="game-desc">Прокачивай уровень, покупай авто-кликеры и зарабатывай кибер-очки.</p>
+          <button class="game-play-btn" onclick="openCyberClickerModal()">Запустить</button>
+        </div>
+      </div>
+
+      <div class="game-card" data-title="ufc fighter simulator симулятор юфс бойцов">
+        <div class="game-thumb" style="background-image: url('https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=600&q=80');">
+          <span class="game-badge">Доступно</span>
+        </div>
+        <div class="game-info">
+          <h3 class="game-name">UFC Fighter Simulator</h3>
+          <p class="game-desc">Создай своего бойца, качай силу и выносливость, завоевывай пояс.</p>
+          <button class="game-play-btn" onclick="openUfcSimulatorModal()">Запустить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- СТРАНИЦА: КОРОБКА СЕКРЕТОВ / АНОНИМНЫЕ ПРИЗНАНИЯ -->
+  <div id="secretsPage" class="page-view" style="display: none;">
+    <div class="community-header">
+      <h1 class="community-title"> Коробка секретов</h1>
+      <p class="community-desc">Анонимные признания. Никто не узнает, кто написал. Сообщения проходят модерацию перед публикацией.</p>
+    </div>
+
+    <div class="guestbook-section" style="margin-bottom: 20px;">
+      <div class="gb-header">
+        <div class="gb-title">Написать анонимно</div>
+      </div>
+      <div class="support-info-box" style="margin-bottom: 14px;">
+        Сообщение появится в ленте только после проверки модератором. Не указывайте личные данные, по которым вас можно узнать.
+      </div>
+      <textarea id="secretInput" class="suggest-textarea" style="height: 100px; margin-bottom: 12px;" placeholder="Напишите то, что давно хотели сказать анонимно..." maxlength="500"></textarea>
+      <div class="char-counter" id="secretCharCounter">0 / 500</div>
+      <button class="gb-send-btn" id="secretSendBtn" style="width: 100%; padding: 12px;" onclick="submitSecret()">Отправить в коробку</button>
+    </div>
+
+    <div class="guestbook-section" id="secretsAdminSection" style="display: none; margin-bottom: 20px; border-color: rgba(245, 158, 11, 0.4);">
+      <div class="gb-header">
+        <div class="gb-title" style="color: #f59e0b;">Модерация (ожидают проверки)</div>
+      </div>
+      <div id="secretsPendingList" style="display: flex; flex-direction: column; gap: 12px; max-height: 360px; overflow-y: auto;">
+        <div style="color: var(--muted); text-align: center; padding: 16px;">Нет сообщений на модерации</div>
+      </div>
+    </div>
+
+    <div class="guestbook-section">
+      <div class="gb-header">
+        <div class="gb-title">Опубликованные секреты</div>
+        <select id="secretsSortSelect" class="sort-select" onchange="renderSecrets()">
+          <option value="newest">Сначала новые</option>
+          <option value="oldest">Сначала старые</option>
+        </select>
+      </div>
+      <div id="secretsList" style="display: flex; flex-direction: column; gap: 12px; max-height: 600px; overflow-y: auto;">
+        <div style="color: var(--muted); text-align: center; padding: 24px;">Загрузка...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- СТРАНИЦА ПРОФИЛЯ ПОЛЬЗОВАТЕЛЯ -->
+  <div id="userProfileModal" class="page-view" style="display: none;">
+    <button class="np-profile-back-btn" onclick="closeUserProfileModal()">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Назад
+    </button>
+
+    <div class="np-profile-card">
+      <div class="np-avatar-wrap">
+        <div class="np-avatar-box" id="modalUserAvatar"></div>
+        <button class="np-avatar-edit-btn" id="modalAvatarEditBtn" onclick="openEditProfileModalFromModal()" title="Редактировать профиль" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+      </div>
+
+      <div class="np-profile-headinfo">
+        <div class="np-profile-name-row">
+          <span id="modalUserName"></span>
+          <span id="modalUserProviderIcon" class="np-provider-icon"></span>
+          <span id="modalUserSubBadge"></span>
+        </div>
+        <div class="np-profile-stats" id="npProfileStatsVisible">
+          <span class="np-stat-clickable" onclick="openFollowModal('following')"><b id="modalUserSubsCount">0</b> Подписок</span>
+          <span class="np-stat-clickable" onclick="openFollowModal('followers')"><b id="modalUserFollowersCount">0</b> Подписчиков</span>
+          <span><b id="modalUserPostsCount">0</b> публикаций</span>
+        </div>
+        <div class="np-profile-stats-hidden" id="npProfileStatsHidden" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Подписки и подписчики скрыты пользователем ·</span>
+          <span><b id="modalUserPostsCountHidden">0</b> публикаций</span>
+        </div>
+        <div class="np-profile-details" id="npProfileDetails">
+          <span id="modalUserHandle">@Discoragen</span>
+          <span class="np-detail-sep" id="tgBioBlock" style="display:none;">·</span>
+          <span id="modalUserBio"></span>
+          <span class="np-detail-sep" id="tgBirthdayBlock" style="display:none;">·</span>
+          <span id="modalUserBirthday"></span>
+          <span class="np-detail-sep" id="tgPhoneBlock" style="display:none;">·</span>
+          <span id="modalUserPhone"></span>
+          <span class="np-detail-sep">·</span>
+          <span>на сайте с <span id="modalUserRegDate">18 июля 2026</span></span>
+        </div>
+      </div>
+
+      <div class="np-profile-actions">
+        <button class="np-subscribe-btn" id="modalFriendActionBtn" onclick="toggleSubscriptionFromModal()">
+          Подписаться
+        </button>
+        <button class="np-profile-action-btn np-profile-action-danger" id="modalBlockUserBtn" onclick="toggleBlockCurrentUser()" style="display:none;">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+          Блокировать
+        </button>
+      </div>
+    </div>
+
+    <div class="np-profile-posts-section">
+      <div class="np-profile-section-title" id="npProfileSectionTitle">Ваши публикации</div>
+
+      <div class="np-profile-tabs-row">
+        <div class="np-profile-tabs">
+          <button class="np-profile-tab active" id="npTabPosts" onclick="switchProfilePostsTab('posts')">Посты</button>
+          <button class="np-profile-tab" id="npTabHidden" onclick="switchProfilePostsTab('hidden')">Скрытые</button>
+        </div>
+        <div class="np-filter-wrap">
+          <button type="button" class="np-filter-toggle-btn" id="npFilterToggleBtn" onclick="toggleProfileFilterPanel()">
+            Фильтрация
+            <svg class="np-filter-chevron" id="npFilterChevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="np-filter-panel" id="npFilterPanel" style="display:none;">
+        <div class="np-filter-section">
+          <div class="np-filter-label">Период</div>
+          <div class="np-filter-pills">
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('period','today',this)">Сегодня</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('period','week',this)">Неделя</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('period','month',this)">Месяц</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('period','year',this)">Год</button>
+            <button type="button" class="np-filter-pill active" onclick="setProfileFilter('period','all_time',this)">Всё время</button>
+          </div>
+        </div>
+        <div class="np-filter-divider"></div>
+        <div class="np-filter-section">
+          <div class="np-filter-label">Сортировка</div>
+          <div class="np-filter-pills">
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('sort','best',this)">Лучшее</button>
+            <button type="button" class="np-filter-pill active" onclick="setProfileFilter('sort','newest',this)">Новые</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('sort','oldest',this)">Старые</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('sort','views',this)">По просмотрам</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('sort','likes',this)">По лайкам</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('sort','comments',this)">По комментариям</button>
+          </div>
+        </div>
+        <div class="np-filter-divider"></div>
+        <div class="np-filter-section">
+          <div class="np-filter-label">Тип публикации</div>
+          <div class="np-filter-pills">
+            <button type="button" class="np-filter-pill active" onclick="setProfileFilter('type','all',this)">Всё</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('type','image',this)">Изображения</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('type','video',this)">Видео</button>
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('type','audio',this)">Аудио</button>
+          </div>
+        </div>
+        <div class="np-filter-divider"></div>
+        <div class="np-filter-section">
+          <div class="np-filter-label">Цензура <span class="np-filter-help" title="Скрывать 18+ контент">?</span></div>
+          <div class="np-filter-pills">
+            <button type="button" class="np-filter-pill" onclick="setProfileFilter('censor','on',this)">Включена</button>
+            <button type="button" class="np-filter-pill active" onclick="setProfileFilter('censor','off',this)">Выключена</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="modalUserMessages" class="np-profile-posts"></div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <div class="footer-label">ПОДДЕРЖКА</div>
+        <a href="https://t.me/Discoragen" target="_blank" class="footer-val">Discoragen</a>
+      </div>
+      <div class="footer-col">
+        <div class="footer-label">РАЗРАБОТКА</div>
+        <a href="https://t.me/Discoragen" target="_blank" class="footer-val">Discoragen</a>
+        <a href="#" class="footer-rules" onclick="event.preventDefault(); openRulesModal()">Правила сайта</a>
+      </div>
+      <div class="footer-col">
+        <div class="footer-label">ДИЗАЙН</div>
+        <a href="https://t.me/Discoragen" target="_blank" class="footer-val">Discoragen</a>
+      </div>
+    </div>
+
+    <div class="footer-decor">
+      <div class="footer-dino-wrap">
+        <aside class="loader" style="--wh-number: 24;">
+          <div class="pixel"></div>
+        </aside>
+      </div>
+
+    <div id="ghost" class="footer-ghost">
+      <div id="red">
+        <div id="pupil"></div>
+        <div id="pupil1"></div>
+        <div id="eye"></div>
+        <div id="eye1"></div>
+        <div id="top0"></div>
+        <div id="top1"></div>
+        <div id="top2"></div>
+        <div id="top3"></div>
+        <div id="top4"></div>
+        <div id="st0"></div>
+        <div id="st1"></div>
+        <div id="st2"></div>
+        <div id="st3"></div>
+        <div id="st4"></div>
+        <div id="st5"></div>
+        <div id="an1"></div>
+        <div id="an2"></div>
+        <div id="an3"></div>
+        <div id="an4"></div>
+        <div id="an5"></div>
+        <div id="an6"></div>
+        <div id="an7"></div>
+        <div id="an8"></div>
+        <div id="an9"></div>
+        <div id="an10"></div>
+        <div id="an11"></div>
+        <div id="an12"></div>
+        <div id="an13"></div>
+        <div id="an14"></div>
+        <div id="an15"></div>
+        <div id="an16"></div>
+        <div id="an17"></div>
+        <div id="an18"></div>
+      </div>
+      <div id="shadow"></div>
+    </div>
+
+      <div class="footer-clouds"></div>
+    </div>
+  </footer>
+
+</div>
+ 
+ 
+ <div id="toast-container" class="toast-container"></div>
+
+<script src="script.js"></script>
+ 
+ </body>
+ </html>
