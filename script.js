@@ -2,7 +2,7 @@
   // ОГЛАВЛЕНИЕ JS (искать по этим меткам через Ctrl+F):
   // - ЛОГИКА ПОЛНОЭКРАННОГО РЕЖИМА          — открытие/закрытие модалок
   // - ЛОГИКА ИГРЫ 1/2/3                     — мини-игры (CS2 Quiz, Clicker, UFC)
-  // - УПРАВЛЕНИЕ МОБИЛЬНЫМ МЕНЮ             — бургер-меню, переключение вкладок
+  // - ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК                  — switchTab и связанная навигация
   // - АВТО-ОТКРЫТИЕ ВКЛАДКИ ПО ССЫЛКЕ       — deep-link из Telegram-бота (?tab=...)
   // - УМНЫЙ ПОИСК                           — поиск по платформе
   // - ПОДПИСКА (Premium/Lite)               — покупка и статус подписки
@@ -22,9 +22,11 @@
     (typeof entry === 'string') ? { id: '', name: entry, avatarUrl: '' } : entry
   );
   // Есть ли пользователь с таким именем в чёрном списке
+  // Проверить, есть ли пользователь с таким именем в чёрном списке
   function isBlockedName(name) {
     return blockedUsers.some(b => b.name === name);
   }
+  // Сохранить чёрный список заблокированных пользователей в localStorage
   function saveBlockedUsers() {
     localStorage.setItem('discoragen_blacklist', JSON.stringify(blockedUsers));
   }
@@ -36,8 +38,6 @@
   let currentFeedType = 'all';
   let currentFeedSort = 'best';
   let currentFeedTime = 'today';
-
-  let commentListeners = {};
 
   // Запоминаем последнюю активную вкладку сайта, чтобы кнопка "Назад"
   // на странице профиля могла вернуть пользователя туда, откуда он пришёл.
@@ -362,6 +362,8 @@
     });
   }
 
+  // Переключить активную вкладку сайта: скрывает все страницы/пункты навигации
+  // и показывает только ту, что соответствует tabName
   function switchTab(tabName) {
     const mainPage = document.getElementById('mainPage');
     const newPostPage = document.getElementById('newPostPage');
@@ -377,9 +379,7 @@
     const navPhotos = document.getElementById('navPhotos');
     const navVideos = document.getElementById('navVideos');
     const navGames = document.getElementById('navGames');
-    const navFriends = document.getElementById('navFriends');
     const navDm = document.getElementById('navDm');
-    const navSecrets = document.getElementById('navSecrets');
 
     mainPage.style.display = 'none';
     if (newPostPage) newPostPage.style.display = 'none';
@@ -399,9 +399,7 @@
     if (navPhotos) navPhotos.classList.remove('active');
     navVideos.classList.remove('active');
     navGames.classList.remove('active');
-    if (navFriends) navFriends.classList.remove('active');
     if (navDm) navDm.classList.remove('active');
-    if (navSecrets) navSecrets.classList.remove('active');
 
     // нижнее мобильное меню — активные состояния
     document.querySelectorAll('.mbn-item').forEach(l => l.classList.remove('active'));
@@ -427,14 +425,12 @@
       navGames.classList.add('active');
     } else if (tabName === 'friends') {
       friendsPage.style.display = 'block';
-      if (navFriends) navFriends.classList.add('active');
       renderFriendsList();
     } else if (tabName === 'dm') {
       if (dmPage) dmPage.style.display = 'block';
       if (navDm) navDm.classList.add('active');
     } else if (tabName === 'secrets') {
       if (secretsPage) secretsPage.style.display = 'block';
-      if (navSecrets) navSecrets.classList.add('active');
       renderSecrets();
     } else if (tabName === 'settings') {
       const settingsPageEl = document.getElementById('settingsPage');
@@ -466,6 +462,7 @@
 
   const TAB_PAGE_IDS = { main: 'mainPage', newpost: 'newPostPage', photos: 'photosPage', videos: 'videosPage', games: 'gamesPage', dm: 'dmPage', settings: 'settingsPage' };
 
+  // Показать разовую подсказку по разделу (TAB_GUIDES), если она ещё не была показана
   function maybeShowTabGuide(tabName) {
     const info = TAB_GUIDES[tabName];
     if (!info) return;
@@ -667,7 +664,7 @@
 
   // Открыть модалку поддержки
   function openSupportModal() { profileDropdown.classList.remove('show'); supportModal.classList.add('show'); }
-  function closeSupportModal() { supportModal.classList.remove('show'); }
+  function closeSupportModal() { supportModal.classList.remove('show'); } // Закрыть модалку поддержки
 
   let selectedDonateAmount = null;
   let finalDonateAmount = null;
@@ -847,22 +844,6 @@
     });
   }
 
-  // Скопировать номер телефона для доната в буфер обмена
-  function copyDonatePhone() {
-    const phoneText = document.getElementById('donateSbpPhone').textContent.trim();
-    const btn = document.getElementById('donateCopyBtn');
-    const onCopied = () => {
-      btn.textContent = 'Скопировано ✓';
-      btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = 'Скопировать'; btn.classList.remove('copied'); }, 1800);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(phoneText).then(onCopied).catch(() => fallbackCopyText(phoneText, onCopied));
-    } else {
-      fallbackCopyText(phoneText, onCopied);
-    }
-  }
-
   // Запасной способ копирования текста (для браузеров без Clipboard API)
   function fallbackCopyText(text, onDone) {
     const ta = document.createElement('textarea');
@@ -877,9 +858,10 @@
   }
   // Открыть модалку с правилами платформы
   function openRulesModal() { profileDropdown.classList.remove('show'); rulesModal.classList.add('show'); }
-  function closeRulesModal() { rulesModal.classList.remove('show'); }
+  function closeRulesModal() { rulesModal.classList.remove('show'); } // Закрыть модалку с правилами
   // Открыть модалку предложения видео
   function openSuggestVideoModal() { suggestVideoModal.classList.add('show'); }
+  // Закрыть модалку предложения видео и очистить поле ввода
   function closeSuggestVideoModal() {
     suggestVideoModal.classList.remove('show');
     document.getElementById('suggestVideoUrl').value = '';
@@ -1106,6 +1088,7 @@
   // Блокировки, чтобы нельзя было проголосовать несколько раз, пока идёт запрос
   let voteLocksInProgress = {};
 
+  // Открыть полноэкранный просмотр поста (режим "рилс") начиная с targetMsgId
   function openViewPostModal(targetMsgId) {
     reelsAllPosts = currentMessagesList.filter(m => m.image && m.accessMode !== 'link' && !isBlockedName(m.author));
 
@@ -1331,6 +1314,7 @@
 
   // Подсветить край экрана синим при переключении поста
   let reelsEdgeGlowTimeout = null;
+  // Кратковременно подсветить левый/правый край экрана синим свечением
   function flashReelsEdge(side) {
     const el = document.getElementById(side === 'left' ? 'reelsEdgeGlowLeft' : 'reelsEdgeGlowRight');
     if (!el) return;
@@ -1358,7 +1342,6 @@
       const openModal = document.querySelector('.modal-overlay.show');
       const profilePageEl = document.getElementById('userProfileModal');
       const profileOpen = profilePageEl && profilePageEl.style.display === 'block';
-      const mobileDrawer = document.getElementById('mobileDrawerOverlay');
       const notifDropdownEl = document.getElementById('notifDropdown');
       const profileDropdownEl = document.getElementById('profileDropdown');
       const headerSearchEl = document.getElementById('headerSearch');
@@ -1369,8 +1352,6 @@
         openModal.classList.remove('show');
       } else if (profileOpen) {
         closeUserProfileModal();
-      } else if (mobileDrawer && mobileDrawer.classList.contains('show')) {
-        closeMobileMenu();
       } else if (notifDropdownEl && notifDropdownEl.classList.contains('show')) {
         notifDropdownEl.classList.remove('show');
       } else if (profileDropdownEl && profileDropdownEl.classList.contains('show')) {
@@ -1460,21 +1441,12 @@
     });
   };
 
-  // Простое хеширование строки (для генерации детерминированных значений)
-  function hashCode(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = (hash << 5) - hash + str.charCodeAt(i);
-      hash |= 0;
-    }
-    return hash;
-  }
-
   // Учёт РЕАЛЬНЫХ просмотров поста. Засчитываем не более одного просмотра
   // с одного устройства/браузера на пост (флаг в localStorage), инкрементируем
   // счётчик в Firestore и сразу обновляем локальный кэш, чтобы цифра на экране
   // была актуальной без перезагрузки страницы.
   const viewedPostsRegistering = new Set();
+  // Засчитать просмотр поста для конкретного msgId (см. пояснение выше)
   function registerPostView(msgId) {
     if (!msgId) return;
     const viewKey = `viewed_post_${msgId}`;
@@ -1532,6 +1504,7 @@
     });
   };
 
+  // Подписаться на живое обновление комментариев к посту msgId (режим "рилс")
   function listenReelComments(msgId) {
     const commentsListContainer = document.getElementById(`reelCommentsList_${msgId}`);
     const commentTitle = document.getElementById(`reel_comment_title_${msgId}`);
@@ -1748,12 +1721,14 @@
   // Флаг 18+ для нового поста
   window.newPostIsNSFW = window.newPostIsNSFW || false;
 
+  // Переключить флаг 18+ для нового поста
   function toggleNsfwFlag() {
     window.newPostIsNSFW = !window.newPostIsNSFW;
     const btn = document.getElementById('nsfwToggleBtn');
     if (btn) btn.classList.toggle('selected', window.newPostIsNSFW);
   }
 
+  // Обновить индикатор количества выбранных файлов для нового поста
   function updateNewPostFileIndicator() {
     const indicator = document.getElementById('newPostFileIndicator');
     if (!indicator) return;
@@ -1804,6 +1779,7 @@
     if (zone) zone.classList.add('dropzone-dragover');
   }
 
+  // Курсор покинул зону загрузки — убрать подсветку drag-n-drop
   function handleNewPostDragLeave(event) {
     event.preventDefault();
     event.stopPropagation();
@@ -1811,6 +1787,7 @@
     if (zone) zone.classList.remove('dropzone-dragover');
   }
 
+  // Файл(ы) отпущены в зону загрузки — обработать каждый как выбранный файл
   function handleNewPostFileDrop(event) {
     event.preventDefault();
     event.stopPropagation();
@@ -1924,6 +1901,7 @@
   }
   // Закрыть модалку входа
   function closeLoginModal() { loginModal.classList.remove('show'); }
+  // Открыть модалку регистрации
   function openRegisterModal() {
     profileDropdown.classList.remove('show');
     registerModal.classList.add('show');
@@ -1951,7 +1929,7 @@
     profileDropdown.classList.remove('show');
     adminPanelModal.classList.add('show');
   }
-  function closeAdminPanelModal() { adminPanelModal.classList.remove('show'); }
+  function closeAdminPanelModal() { adminPanelModal.classList.remove('show'); } // Закрыть админ-панель
 
   // Открыть панель выдачи подписок
   function openSubsAdminModal() {
@@ -1960,7 +1938,7 @@
     const resultsBox = document.getElementById('subAdminResults');
     if (resultsBox) resultsBox.innerHTML = '<div style="color: var(--muted); font-size: 12.5px; text-align:center; padding: 8px;">Введите никнейм или email для поиска</div>';
   }
-  function closeSubsAdminModal() { subsAdminModal.classList.remove('show'); }
+  function closeSubsAdminModal() { subsAdminModal.classList.remove('show'); } // Закрыть панель выдачи подписок
 
   // Открыть панель банов и таймаутов
   function openBanAdminModal() {
@@ -1969,7 +1947,7 @@
     const resultsBox = document.getElementById('banAdminResults');
     if (resultsBox) resultsBox.innerHTML = '<div style="color: var(--muted); font-size: 12.5px; text-align:center; padding: 8px;">Введите никнейм или email для поиска</div>';
   }
-  function closeBanAdminModal() { banAdminModal.classList.remove('show'); }
+  function closeBanAdminModal() { banAdminModal.classList.remove('show'); } // Закрыть панель банов и таймаутов
 
   // Открыть модалку топ-донатеров
   function openTopDonatorsModal() {
@@ -2570,6 +2548,7 @@
     document.getElementById('followListModal').classList.add('show');
   }
 
+  // Закрыть модалку "Подписки / Подписчики"
   function closeFollowModal() {
     const modal = document.getElementById('followListModal');
     if (modal) modal.classList.remove('show');
@@ -2764,6 +2743,7 @@
   }
   // Сохранить список Telegram-аккаунтов в localStorage
   function saveTgAccounts(list) { localStorage.setItem(TG_ACCOUNTS_KEY, JSON.stringify(list)); }
+  // Добавить или обновить метаданные Telegram-аккаунта в сохранённом списке
   function upsertTgAccountMeta(meta) {
     const list = loadTgAccounts();
     const idx = list.findIndex(a => String(a.telegramId) === String(meta.telegramId));
@@ -3968,6 +3948,7 @@
     }
     overlay.classList.add('show');
   }
+  // Скрыть оверлей бана/таймаута
   function hideBanOverlay() {
     const overlay = document.getElementById('banOverlay');
     if (overlay) overlay.classList.remove('show');
@@ -3985,6 +3966,7 @@
   let banWatcherUnsub = null;
   let banWatcherRetryTimer = null;
   let banWatcherFallbackTimer = null;
+  // Запустить realtime-слежение за баном для пользователя (см. пояснение выше)
   function startBanWatcher(user) {
     if (banWatcherUnsub) { banWatcherUnsub(); banWatcherUnsub = null; }
     if (banWatcherRetryTimer) { clearTimeout(banWatcherRetryTimer); banWatcherRetryTimer = null; }
@@ -3995,6 +3977,7 @@
     const watchUid = user.uid;
     const myEpoch = authEpoch;
 
+    // Применить полученные данные о бане: обновить профиль и показать/скрыть оверлей
     function applyBanData(data) {
       if (myEpoch !== authEpoch) return; // пользователь уже сменился/переключился
       if (currentUserProfile) {
@@ -4009,6 +3992,7 @@
       }
     }
 
+    // Подписаться на onSnapshot документа пользователя (с автопереподключением при ошибке)
     function subscribe() {
       banWatcherUnsub = watchDb.collection('users').doc(watchUid).onSnapshot(doc => {
         if (myEpoch !== authEpoch) return;
@@ -4436,8 +4420,6 @@
       const mySub = profile.subTier && profile.subExpiresAt && profile.subExpiresAt > Date.now() ? profile.subTier : null;
       const mySubBadgeStr = mySub === 'premium' ? 'PREMIUM ' : (mySub === 'lite' ? 'LITE' : '');
       dropdownUsernameText.textContent = name + adminBadgeStr + mySubBadgeStr;
-      const mbnAuthLabel = document.getElementById('mbnAuthLabel');
-      if (mbnAuthLabel) mbnAuthLabel.textContent = 'Профиль';
       const settingsAuthLabel = document.getElementById('settingsAuthLabel');
       if (settingsAuthLabel) settingsAuthLabel.textContent = name;
 
@@ -4474,8 +4456,6 @@
       `;
     } else {
       dropdownUsernameText.textContent = 'Гость';
-      const mbnAuthLabelGuest = document.getElementById('mbnAuthLabel');
-      if (mbnAuthLabelGuest) mbnAuthLabelGuest.textContent = 'Войти';
       const settingsAuthLabelGuest = document.getElementById('settingsAuthLabel');
       if (settingsAuthLabelGuest) settingsAuthLabelGuest.textContent = 'Войти / Профиль';
       dropdownAvatarBox.innerHTML = `<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
@@ -5015,6 +4995,7 @@
     renderGuestbook(gbLastFullList);
   }
 
+  // Отрисовать список сообщений гостевой книги
   function renderGuestbook(messagesToRender) {
     gbLastFullList = messagesToRender;
     gbMessagesContainer.innerHTML = '';
@@ -5120,6 +5101,7 @@
   let albumHintShowTimer = null;
   let albumHintHideTimer = null;
 
+  // Сбросить оба таймера показа/скрытия подсказки об альбоме
   function clearAlbumHintTimers() {
     if (albumHintShowTimer) { clearTimeout(albumHintShowTimer); albumHintShowTimer = null; }
     if (albumHintHideTimer) { clearTimeout(albumHintHideTimer); albumHintHideTimer = null; }
@@ -5149,11 +5131,13 @@
     }, 1800);
   }
 
+  // Получить массив изображений поста (альбом или одиночное фото)
   function getPostImages(msg) {
     if (Array.isArray(msg.images) && msg.images.length > 0) return msg.images;
     return msg.image ? [msg.image] : [];
   }
 
+  // Снять цензуру 18+ с конкретного поста по клику пользователя
   function revealNsfwPost(msgId, event) {
     if (event) event.stopPropagation();
     window.revealedNsfwIds.add(msgId);
@@ -5162,6 +5146,7 @@
     document.querySelectorAll(`[data-nsfw-media="${msgId}"]`).forEach(el => el.classList.remove('nsfw-blurred'));
   }
 
+  // Сгенерировать HTML цензурной плашки 18+ (compact — для ленты, иначе — для поста)
   function nsfwOverlayHTML(msgId, compact) {
     if (compact) {
       // В ленте контент нельзя раскрыть прямо с плашки — клик только открывает пост,
@@ -5197,6 +5182,7 @@
     dismissAlbumHint(msgId);
   }
 
+  // Переключиться на конкретный слайд альбома по клику на точку-индикатор
   function goToAlbumSlide(msgId, idx, event) {
     if (event) event.stopPropagation();
     window.reelAlbumIndexes[msgId] = idx;
@@ -5206,6 +5192,7 @@
     dismissAlbumHint(msgId);
   }
 
+  // Отрисовать текущий слайд альбома внутри поста (фото или видео)
   function renderAlbumFrame(msgId, imgs, idx) {
     const frame = document.getElementById(`albumFrame_${msgId}`);
     if (!frame) return;
@@ -5239,6 +5226,7 @@
     document.body.style.overflow = 'hidden';
   };
 
+  // Отрисовать текущий слайд в полноэкранном лайтбоксе
   function renderLightboxSlide() {
     const state = window.lightboxState;
     if (!state) return;
@@ -5286,6 +5274,7 @@
     window.lightboxState = null;
   };
 
+  // Отрисовать сетку фотографий на странице "Фото"
   function renderPhotosGrid() {
     const grid = document.getElementById('photosGrid');
     if (!grid) return;
@@ -5559,7 +5548,6 @@
 
     const lastSent = Number(localStorage.getItem('last_secret_sent') || 0);
     if (cooldownMs > 0 && Date.now() - lastSent < cooldownMs) {
-      const waitMin = Math.ceil((cooldownMs - (Date.now() - lastSent)) / 60000);
       showToast(`⏳ Подождите ещё немного перед следующим сообщением`, 'error');
       return;
     }
@@ -5779,6 +5767,7 @@ let notifFirstLoadDone = false;
 function getGuestReadNotifIds() {
   try { return new Set(JSON.parse(localStorage.getItem('notif_read_guest') || '[]')); } catch (e) { return new Set(); }
 }
+// Сохранить набор прочитанных гостем ID уведомлений
 function saveGuestReadNotifIds(idsSet) {
   try { localStorage.setItem('notif_read_guest', JSON.stringify(Array.from(idsSet))); } catch (e) {}
 }
@@ -5788,9 +5777,11 @@ function currentNotifStorageKey() {
   const user = (typeof auth !== 'undefined' && auth) ? auth.currentUser : null;
   return 'notif_dismissed_' + (user ? user.uid : 'guest');
 }
+// Получить набор скрытых пользователем уведомлений
 function getDismissedNotifIds() {
   try { return new Set(JSON.parse(localStorage.getItem(currentNotifStorageKey()) || '[]')); } catch (e) { return new Set(); }
 }
+// Сохранить набор скрытых пользователем уведомлений
 function saveDismissedNotifIds(idsSet) {
   try { localStorage.setItem(currentNotifStorageKey(), JSON.stringify(Array.from(idsSet))); } catch (e) {}
 }
@@ -5952,6 +5943,7 @@ function showPushToast(n) {
   el._autoHideTimer = autoHideTimer;
 }
 
+// Скрыть и удалить всплывающий toast с уведомлением
 function hidePushToast(el) {
   if (!el || el._hiding) return;
   el._hiding = true;

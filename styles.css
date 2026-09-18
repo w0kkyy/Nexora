@@ -3,8 +3,6 @@
      - :root / .light-theme        — цветовые переменные (тёмная/светлая тема)
      - .site-header                — верхняя навигация
      - умный поиск                 — выпадающий поиск по сайту
-     - бургер меню                 — мобильное меню
-     - кнопка тг бота               — плавающая кнопка перехода в Telegram-бота
      - переключатель TG-аккаунтов  — дропдаун смены Telegram-аккаунта
      - ТИЗЕР / РИЛС-МОДАЛКА        — карточки видео и полноэкранный просмотр
      - ПОДПИСКА (Premium/Lite)     — блок оформления подписки
@@ -80,7 +78,7 @@
     transition: background 0.3s ease, color 0.3s ease;
   }
 
-  a, button, .play-btn, .progress-slider, .sort-select, .social-btn, .tag, .volume-slider, .visitor-count, .nav-btn, .dropdown-item, .username, .location, .gb-send-btn, .reaction-btn, .picker-emoji-opt, .site-logo, .support-card-btn, .top-nav-link, .footer-val, .footer-rules, .game-play-btn, .video-filter-btn, .suggest-btn, .category-tag, .gb-author, .gb-avatar, .photo-card, .custom-dropdown-btn, .custom-dropdown-item, .reel-act-btn, .reel-submit-comment-btn, .reel-vote-btn, .reel-reply-btn {
+  a, button, .play-btn, .sort-select, .tag, .nav-btn, .dropdown-item, .username, .location, .gb-send-btn, .reaction-btn, .picker-emoji-opt, .site-logo, .support-card-btn, .top-nav-link, .footer-val, .footer-rules, .game-play-btn, .video-filter-btn, .category-tag, .gb-author, .gb-avatar, .photo-card, .custom-dropdown-btn, .custom-dropdown-item, .reel-act-btn, .reel-submit-comment-btn, .reel-vote-btn, .reel-reply-btn {
     cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M2 2l16 7-6 3-3 6z' fill='%23ffffff' stroke='%233b82f6' stroke-width='1.5'/><circle cx='5' cy='5' r='1.5' fill='%233b82f6'/></svg>"), pointer;
   }
 
@@ -325,118 +323,6 @@
     color: var(--accent);
   }
 
-  /* бургер меню для мобилок  */
-  .mobile-menu-btn {
-    display: none;
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    align-items: center;
-    justify-content: center;
-    color: var(--text);
-    cursor: pointer;
-  }
-
-  .mobile-menu-btn svg {
-    width: 20px;
-    height: 20px;
-    stroke: var(--text);
-    stroke-width: 2;
-    fill: none;
-    stroke-linecap: round;
-  }
-
-  .mobile-drawer-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(6px);
-    z-index: 2000;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-
-  .mobile-drawer-overlay.show {
-    display: flex;
-    opacity: 1;
-  }
-
-  .mobile-drawer {
-    position: fixed;
-    top: 0;
-    right: -280px;
-    width: 280px;
-    height: 100%;
-    background: var(--bg);
-    border-left: 1px solid var(--card-border);
-    z-index: 2100;
-    display: flex;
-    flex-direction: column;
-    padding: 24px 20px;
-    gap: 20px;
-    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: -10px 0 30px rgba(0,0,0,0.5);
-  }
-
-  .mobile-drawer-overlay.show .mobile-drawer {
-    right: 0;
-  }
-
-  .mobile-drawer-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--card-border);
-    padding-bottom: 14px;
-  }
-
-  .mobile-drawer-title {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--text);
-  }
-
-  .mobile-drawer-close {
-    background: rgba(255,255,255,0.08);
-    border: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    color: var(--muted);
-    font-size: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-
-  .mobile-drawer-links {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .mobile-drawer-link {
-    color: var(--text);
-    text-decoration: none;
-    font-size: 15px;
-    font-weight: 700;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: rgba(150, 150, 150, 0.05);
-    transition: all 0.2s ease;
-  }
-
-  .mobile-drawer-link.active {
-    background: rgba(59, 130, 246, 0.15);
-    color: var(--accent);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-  }
-
   .error-toast {
     position: fixed;
     top: 78px;
@@ -493,61 +379,6 @@
     border-color: var(--accent);
     box-shadow: 0 0 15px var(--accent-glow);
     transform: scale(1.05);
-  }
-
-  /* кнопка для тг бота */
-  .tg-bot-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 44px;
-    padding: 0 16px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #2AABEE, #229ED9);
-    border: 1px solid rgba(255,255,255,0.15);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    text-decoration: none;
-    white-space: nowrap;
-    transition: all 0.2s ease;
-    box-shadow: 0 0 14px rgba(42, 171, 238, 0.35);
-  }
-
-  .tg-bot-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 20px rgba(42, 171, 238, 0.55);
-  }
-
-  .tg-bot-btn svg {
-    width: 20px;
-    height: 20px;
-    fill: #fff;
-    flex-shrink: 0;
-  }
-
-  .tg-bot-btn span {
-    line-height: 1;
-  }
-
-  @media (max-width: 900px) {
-    .tg-bot-btn span { display: none; }
-    .tg-bot-btn { width: 44px; height: 44px; padding: 0; justify-content: center; }
-  }
-
-  .mobile-drawer-link.tg-bot-drawer-link {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: linear-gradient(135deg, #2AABEE, #229ED9);
-    color: #fff !important;
-    font-weight: 700;
-  }
-
-  .mobile-drawer-link.tg-bot-drawer-link svg {
-    width: 18px;
-    height: 18px;
-    fill: #fff;
   }
 
   .nav-btn svg {
@@ -1698,10 +1529,6 @@
     line-height: 1.5;
     word-break: break-word;
     white-space: pre-wrap;
-  }
-
-  .reel-media-box {
-    display: none;
   }
 
   /* Картинка/видео должны заполнять всю доступную рамку по высоте/ширине
@@ -3270,32 +3097,6 @@
 
   .donate-qr-box.show { display: flex; }
 
-  .donate-qr-img {
-    width: 200px;
-    height: 200px;
-    border-radius: 12px;
-    background: var(--input-bg);
-    border: 1px dashed var(--card-border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    color: var(--muted);
-    text-align: center;
-    padding: 12px;
-    margin-bottom: 12px;
-  }
-
-  .donate-requisites {
-    font-size: 13px;
-    color: var(--text);
-    line-height: 1.6;
-  }
-
-  .donate-requisites b { color: var(--accent); }
-
-  .qr-placeholder-text { display: none; }
-
   .donate-sbp-box {
     width: 100%;
     background: var(--input-bg);
@@ -3312,53 +3113,6 @@
     text-transform: uppercase;
     letter-spacing: 0.4px;
     margin-bottom: 4px;
-  }
-
-  .donate-sbp-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-
-  .donate-sbp-phone {
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--text);
-    letter-spacing: 0.3px;
-  }
-
-  .donate-copy-btn {
-    flex-shrink: 0;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.2s ease;
-    font-family: 'Onest', sans-serif;
-  }
-
-  .donate-copy-btn:hover { background: var(--accent-hover); }
-  .donate-copy-btn.copied { background: #16a34a; }
-
-  .donate-note-box {
-    width: 100%;
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    background: rgba(59, 130, 246, 0.08);
-    border: 1px solid rgba(59, 130, 246, 0.25);
-    border-radius: 10px;
-    padding: 10px 12px;
-    margin-bottom: 14px;
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--text);
-    text-align: left;
   }
 
   .donator-row {
@@ -4246,18 +4000,6 @@
     gap: 4px;
   }
 
-  .video-duration {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    background: rgba(0, 0, 0, 0.8);
-    color: #fff;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
-
   .video-info-box {
     padding: 14px;
     display: flex;
@@ -4498,13 +4240,6 @@
 
   .photo-stat.stat-rating-up { color: #22c55e; }
   .photo-stat.stat-rating-down { color: var(--danger); }
-
-  .suggest-modal-header {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 18px;
-  }
 
   .suggest-modal-subtitle {
     font-size: 12px;
@@ -6083,12 +5818,6 @@
     stroke: currentColor;
   }
 
-  .mps-divider {
-    height: 1px;
-    background: var(--card-border);
-    margin: 6px 0;
-  }
-
   .mps-danger {
     color: var(--danger, #ef4444);
   }
@@ -6178,39 +5907,6 @@
   .profile-dropdown-container #profileMenuBtn {
     display: none;
   }
-}
-
-.mobile-drawer-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mobile-drawer-theme-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.08);
-  border: none;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.mobile-drawer-theme-btn svg {
-  width: 17px;
-  height: 17px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.mobile-drawer-theme-btn:hover {
-  background: rgba(255,255,255,0.15);
 }
 
 /* ===================== МОБИЛЬНЫЙ ПРОСМОТР ПОСТА (ПК не трогаем) =====================
@@ -7405,9 +7101,7 @@ button:not(.mbn-item):not(.top-nav-link):not(.np-profile-tab) {
   /* длинные слова/ссылки без пробелов переносятся, а не вылезают за край */
   .np-profile-details,
   .np-profile-name-row,
-  .gb-message-text,
-  .video-title,
-  .np-profile-post-text {
+  .video-title {
     overflow-wrap: break-word;
     word-break: break-word;
   }
