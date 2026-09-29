@@ -411,15 +411,24 @@
       mainPage.style.display = 'block';
       navMain.classList.add('active');
     } else if (tabName === 'newpost') {
+      if (!auth.currentUser) {
+        // не авторизован — вместо вкладки показываем окно с объяснением, почему нельзя публиковать
+        switchTab('main');
+        openAuthRequiredModal('post');
+        return;
+      }
       if (newPostPage) newPostPage.style.display = 'block';
       if (navNewPost) navNewPost.classList.add('active');
+    } else if (tabName === 'videos') {
+      // Вкладку с видео могут просматривать и гости — авторизация нужна только для того,
+      // чтобы предложить своё видео (см. openSuggestVideoModal)
+      videosPage.style.display = 'block';
+      navVideos.classList.add('active');
+      renderVideosGrid();
     } else if (tabName === 'photos') {
       photosPage.style.display = 'block';
       if (navPhotos) navPhotos.classList.add('active');
       renderPhotosGrid();
-    } else if (tabName === 'videos') {
-      videosPage.style.display = 'block';
-      navVideos.classList.add('active');
     } else if (tabName === 'games') {
       gamesPage.style.display = 'block';
       navGames.classList.add('active');
@@ -517,7 +526,7 @@
     dropdown.style.display = 'block';
     dropdown.innerHTML = '<div style="color: var(--muted); font-size: 12px; text-align: center; padding: 10px;">Ищем везде...</div>';
 
-    const matchedComments = currentMessagesList.filter(m => (m.text || '').toLowerCase().includes(searchQuery));
+    const matchedComments = currentMessagesList.filter(m => m.accessMode !== 'link' && (m.text || '').toLowerCase().includes(searchQuery));
     const matchedVideos = currentVideosList.filter(v => (v.title || '').toLowerCase().includes(searchQuery) || (v.category || '').toLowerCase().includes(searchQuery));
     const gamesCards = Array.from(document.querySelectorAll('.game-card'));
     const matchedGames = gamesCards.filter(g => (g.getAttribute('data-title') || '').toLowerCase().includes(searchQuery) || g.textContent.toLowerCase().includes(searchQuery));
@@ -626,6 +635,7 @@
   const suggestVideoModal = document.getElementById('suggestVideoModal');
   const loginModal = document.getElementById('loginModal');
   const registerModal = document.getElementById('registerModal');
+  const authRequiredModal = document.getElementById('authRequiredModal');
   const editProfileModal = document.getElementById('editProfileModal');
   const userProfileModal = document.getElementById('userProfileModal');
   const reportsModal = document.getElementById('reportsModal');
@@ -633,11 +643,14 @@
   const subsAdminModal = document.getElementById('subsAdminModal');
   const banAdminModal = document.getElementById('banAdminModal');
   const topDonatorsModal = document.getElementById('topDonatorsModal');
-  const accountSettingsModal = document.getElementById('accountSettingsModal');
+  const settingsModal = document.getElementById('settingsModal');
   const viewPostModal = document.getElementById('viewPostModal');
 
   profileMenuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    // Закрываем уведомления: stopPropagation не даёт сработать закрытию по клику вне
+    const notifDd = document.getElementById('notifDropdown');
+    if (notifDd) notifDd.classList.remove('show');
     profileDropdown.classList.toggle('show');
   });
 
@@ -860,7 +873,14 @@
   function openRulesModal() { profileDropdown.classList.remove('show'); rulesModal.classList.add('show'); }
   function closeRulesModal() { rulesModal.classList.remove('show'); } // Закрыть модалку с правилами
   // Открыть модалку предложения видео
-  function openSuggestVideoModal() { suggestVideoModal.classList.add('show'); }
+  function openSuggestVideoModal() {
+    if (!auth.currentUser) {
+      // гость — вместо формы показываем окно с объяснением, почему нужно авторизоваться
+      openAuthRequiredModal('video');
+      return;
+    }
+    suggestVideoModal.classList.add('show');
+  }
   // Закрыть модалку предложения видео и очистить поле ввода
   function closeSuggestVideoModal() {
     suggestVideoModal.classList.remove('show');
@@ -868,37 +888,41 @@
     document.getElementById('suggestVideoComment').value = '';
     document.getElementById('suggestPreviewBox').style.backgroundImage = 'none';
     document.getElementById('suggestPreviewText').style.display = 'block';
+    suggestVideoId = null;
+    suggestVideoTitle = '';
+    suggestVideoPlatform = null;
+    suggestVideoThumb = '';
   }
 
-  // Открыть модалку настроек аккаунта (вкладки: активность / пароль / входы)
-  function openAccountSettingsModal(tab) {
+  // Открыть единое окно настроек (вкладки: пароль / входы / уведомления / чёрный список / скрытые авторы)
+  window.openSettingsModal = function (tab) {
     profileDropdown.classList.remove('show');
-    accountSettingsModal.classList.add('show');
-    switchAccountSettingsTab(tab || 'activity');
-  }
-  // Закрыть модалку настроек аккаунта
-  function closeAccountSettingsModal() {
-    accountSettingsModal.classList.remove('show');
-    document.getElementById('currentPasswordInput').value = '';
-    document.getElementById('newPasswordInput').value = '';
-  }
-  window.openAccountSettingsModal = openAccountSettingsModal;
-  window.closeAccountSettingsModal = closeAccountSettingsModal;
+    settingsModal.classList.add('show');
+    switchSettingsTab(tab || 'password');
+  };
+  // Закрыть единое окно настроек
+  window.closeSettingsModal = function () {
+    settingsModal.classList.remove('show');
+    const cp = document.getElementById('currentPasswordInput');
+    const np = document.getElementById('newPasswordInput');
+    if (cp) cp.value = '';
+    if (np) np.value = '';
+  };
 
-  // Переключить вкладку в модалке настроек аккаунта
-  window.switchAccountSettingsTab = function(tab) {
-    const tabs = { activity: 'asTabActivity', password: 'asTabPassword', logins: 'asTabLogins', notifs: 'asTabNotifs', blacklist: 'asTabBlacklist' };
-    const panes = { activity: 'asPaneActivity', password: 'asPanePassword', logins: 'asPaneLogins', notifs: 'asPaneNotifs', blacklist: 'asPaneBlacklist' };
+  // Переключить вкладку в едином окне настроек
+  window.switchSettingsTab = function (tab) {
+    const tabs = { password: 'stTabPassword', logins: 'stTabLogins', notifs: 'stTabNotifs', blacklist: 'stTabBlacklist', hidden: 'stTabHidden' };
+    const panes = { password: 'stPanePassword', logins: 'stPaneLogins', notifs: 'stPaneNotifs', blacklist: 'stPaneBlacklist', hidden: 'stPaneHidden' };
     Object.keys(tabs).forEach(key => {
       const tabEl = document.getElementById(tabs[key]);
       const paneEl = document.getElementById(panes[key]);
       if (tabEl) tabEl.classList.toggle('active', key === tab);
       if (paneEl) paneEl.style.display = key === tab ? 'block' : 'none';
     });
-    if (tab === 'activity') renderActivityHistory();
     if (tab === 'logins') fetchLoginLogs();
     if (tab === 'notifs') loadNotifSettingsUI();
     if (tab === 'blacklist') renderBlacklist();
+    if (tab === 'hidden') renderHiddenAuthorsPane();
   };
 
   // Открыть страницу своего профиля
@@ -1006,7 +1030,7 @@
     user.reauthenticateWithCredential(credential).then(() => {
       return user.updatePassword(newPass);
     }).then(() => {
-      closeAccountSettingsModal();
+      closeSettingsModal();
       showToast('Пароль успешно изменен!');
     }).catch(err => {
       console.error(err);
@@ -1090,7 +1114,13 @@
 
   // Открыть полноэкранный просмотр поста (режим "рилс") начиная с targetMsgId
   function openViewPostModal(targetMsgId) {
-    reelsAllPosts = currentMessagesList.filter(m => m.image && m.accessMode !== 'link' && !isBlockedName(m.author));
+    // Пост «только по ссылке» открывается один, без листания соседних постов
+    const linkTarget = currentMessagesList.find(m => m.id === targetMsgId);
+    if (linkTarget && linkTarget.image && linkTarget.accessMode === 'link') {
+      reelsAllPosts = [linkTarget];
+    } else {
+      reelsAllPosts = currentMessagesList.filter(m => m.image && m.accessMode !== 'link' && !isBlockedName(m.author));
+    }
 
     if (reelsAllPosts.length === 0) {
       showToast('Нет доступных медиа-постов', 'error');
@@ -1160,7 +1190,7 @@
       } else if (msg.image.startsWith('data:video/') || msg.image.includes('.mp4') || msg.image.includes('.webm')) {
         mediaHTML = `<div class="reel-media-frame"><div class="reel-media-frame${isNsfwHidden ? ' nsfw-blurred' : ''}" data-nsfw-media="${msg.id}"><video controls src="${msg.image}"></video></div>${isNsfwHidden ? nsfwOverlayHTML(msg.id, false) : ''}</div>`;
       } else if (msg.image.startsWith('data:audio/') || msg.image.includes('.mp3') || msg.image.includes('.wav')) {
-        mediaHTML = `<audio controls src="${msg.image}" style="width: 100%; margin: 20px 0;"></audio>`;
+        mediaHTML = window.buildAudioPlayerHTML(msg.image, msg.fileName || parsed.title || 'audio');
       } else {
         mediaHTML = `<div class="reel-media-frame"><div class="reel-media-frame${isNsfwHidden ? ' nsfw-blurred' : ''}" data-nsfw-media="${msg.id}"><img src="${msg.image}" alt="Media" onclick="openAlbumLightbox('${msg.id}', event)" /></div>${isNsfwHidden ? nsfwOverlayHTML(msg.id, false) : ''}</div>`;
       }
@@ -1186,14 +1216,14 @@
       <div class="reel-sidebar-scroll">
       <div class="reel-header">
         <div class="reel-avatar-wrap">
-          <div class="reel-avatar" onclick="openUserProfile('${escapeHtml(msg.userId || '')}', '${escapeHtml(msg.author || '')}', '${escapeHtml(msg.avatarUrl || '')}')" title="Посмотреть профиль">
+          <div class="reel-avatar ${premiumUsersMap[msg.userId] && premiumUsersMap[msg.userId].subTier === 'premium' ? 'avatar-frame-premium' : ''}" onclick="openUserProfile('${escapeHtml(msg.userId || '')}', '${escapeHtml(msg.author || '')}', '${escapeHtml(msg.avatarUrl || '')}')" title="Посмотреть профиль">
             ${avatarHTML}
           </div>
           <div class="reel-subscribe-badge ${isSubscribed ? 'subscribed' : ''}" id="subBadge_${msg.id}" onclick="event.stopPropagation(); toggleAuthorSubscription('${escapeHtml(msg.userId || msg.author || '')}', '${escapeHtml(msg.author || '')}', '${msg.id}')" title="${isSubscribed ? 'Отписаться' : 'Подписаться'}">${subBadgeIcon}</div>
         </div>
         <div class="reel-author-col">
           <div class="reel-author-top-row">
-            <span class="reel-author-name" onclick="openUserProfile('${escapeHtml(msg.userId || '')}', '${escapeHtml(msg.author || '')}', '${escapeHtml(msg.avatarUrl || '')}')" style="cursor: pointer;">${escapeHtml(msg.author || 'Пользователь')}</span>
+            <span class="reel-author-name" ${getUserNameStyle(msg.userId)} onclick="openUserProfile('${escapeHtml(msg.userId || '')}', '${escapeHtml(msg.author || '')}', '${escapeHtml(msg.avatarUrl || '')}')" style="cursor: pointer;">${escapeHtml(msg.author || 'Пользователь')}</span>${getUserBadgeHTML(msg.userId)}
             <span class="reel-date">${timeInfo.display}</span>
           </div>
           <div class="reel-author-handle-row">
@@ -1535,10 +1565,10 @@
         const commentId = escapeHtml(doc.id);
 
         item.innerHTML = `
-          <div class="reel-avatar" style="width: 34px; height: 34px; font-size: 13px; cursor: pointer;" onclick="openUserProfile('${cUserId}', '${cAuthorName}', '${cAvatarUrl}')" title="Посмотреть профиль">${cAvatar}</div>
+          <div class="reel-avatar ${premiumUsersMap[c.userId] && premiumUsersMap[c.userId].subTier === 'premium' ? 'avatar-frame-premium' : ''}" style="width: 34px; height: 34px; font-size: 13px; cursor: pointer;" onclick="openUserProfile('${cUserId}', '${cAuthorName}', '${cAvatarUrl}')" title="Посмотреть профиль">${cAvatar}</div>
           <div class="reel-comment-content">
             <div class="reel-comment-meta">
-              <span class="reel-comment-author" style="cursor: pointer;" onclick="openUserProfile('${cUserId}', '${cAuthorName}', '${cAvatarUrl}')" title="Посмотреть профиль">${cAuthorName}</span>
+              <span class="reel-comment-author" ${getUserNameStyle(c.userId)} onclick="openUserProfile('${cUserId}', '${cAuthorName}', '${cAvatarUrl}')" title="Посмотреть профиль">${cAuthorName}</span>${getUserBadgeHTML(c.userId)}
               <span class="reel-comment-time">${timeInfo.display}</span>
             </div>
             <div class="reel-comment-text">${escapeHtml(c.text)}</div>
@@ -1644,6 +1674,8 @@
       input.value = '';
       handleReelInputState(msgId);
       showToast('Комментарий успешно опубликован!');
+      addMyComment(msgId, text);
+      if (typeof currentProfileTab !== 'undefined' && currentProfileTab === 'comments') renderCurrentProfilePosts();
       const msg = currentMessagesList.find(m => m.id === msgId);
       if (msg && msg.userId && (!currentUser || msg.userId !== currentUser.uid)) {
         sendPersonalNotification(msg.userId, 'comment', 'Новый комментарий', `${authorName} прокомментировал(а) ваш пост: «${text.length > 60 ? text.slice(0, 60).trim() + '…' : text}»`);
@@ -1674,15 +1706,57 @@
     showToast('Загрузка файла начата...');
   }
 
-  // Скопировать ссылку на пост в буфер обмена
-  function copyPostLink(msgId) {
-    const link = window.location.origin + window.location.pathname + `#post_${msgId}`;
-    navigator.clipboard.writeText(link).then(() => {
-      showToast('Ссылка на пост скопирована в буфер обмена!');
-    }).catch(() => {
-      showToast('Ссылка скопирована!');
+  // Ссылка на пост (открывает пост напрямую, в том числе опубликованный «только по ссылке»)
+  function getPostLink(msgId) {
+    return window.location.origin + window.location.pathname + `#post_${msgId}`;
+  }
+
+  // Копирование текста в буфер обмена, с запасным вариантом для http / старых браузеров
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise((resolve, reject) => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        ok ? resolve() : reject(new Error('copy failed'));
+      } catch (e) { reject(e); }
     });
   }
+
+  // Скопировать ссылку на пост в буфер обмена
+  function copyPostLink(msgId) {
+    const link = getPostLink(msgId);
+    copyTextToClipboard(link).then(() => {
+      showToast('Ссылка на пост скопирована в буфер обмена!');
+    }).catch(() => {
+      window.prompt('Скопируйте ссылку на пост:', link);
+    });
+  }
+
+  // Открыть пост по ссылке вида #post_<id> (в том числе пост «только по ссылке»)
+  let deepLinkDoneFor = null;
+  function tryOpenDeepLinkPost() {
+    const m = (window.location.hash || '').match(/^#post_([A-Za-z0-9_-]+)$/);
+    if (!m) return;
+    const id = m[1];
+    if (deepLinkDoneFor === id) return;
+    deepLinkDoneFor = id;
+    const post = currentMessagesList.find(x => x.id === id);
+    if (!post || !post.image) {
+      showToast('Пост не найден или был удалён', 'error');
+      return;
+    }
+    switchTab('photos');
+    openViewPostModal(id);
+  }
+  window.addEventListener('hashchange', () => { deepLinkDoneFor = null; tryOpenDeepLinkPost(); });
 
   // Закрыть модалку просмотра поста
   function closeViewPostModal() {
@@ -1702,6 +1776,10 @@
     newPostAccessMode = mode;
     const pubBtn = document.getElementById('accessPubBtn');
     const linkBtn = document.getElementById('accessLinkBtn');
+    const hint = document.getElementById('accessHint');
+    if (hint) hint.textContent = mode === 'link'
+      ? 'Пост не попадёт в ленту, профиль и поиск. Открыть его смогут только те, у кого есть ссылка — вы получите её сразу после публикации.'
+      : 'Пост появится в общей ленте.';
     if (mode === 'pub') {
       pubBtn.classList.add('selected');
       linkBtn.classList.remove('selected');
@@ -1725,23 +1803,74 @@
   function toggleNsfwFlag() {
     window.newPostIsNSFW = !window.newPostIsNSFW;
     const btn = document.getElementById('nsfwToggleBtn');
-    if (btn) btn.classList.toggle('selected', window.newPostIsNSFW);
+    if (btn) {
+      btn.classList.toggle('selected', window.newPostIsNSFW);
+      btn.setAttribute('aria-checked', window.newPostIsNSFW ? 'true' : 'false');
+    }
   }
 
   // Обновить индикатор количества выбранных файлов для нового поста
+  function updateNewPostSubmitState() {
+    const btn = document.getElementById('newPostSubmitBtn');
+    if (!btn) return;
+    const hasFile = !!newPostFileBase64;
+    btn.textContent = hasFile ? 'Опубликовать' : 'Добавьте файл';
+    btn.classList.toggle('is-empty', !hasFile);
+  }
+
   function updateNewPostFileIndicator() {
+    updateNewPostSubmitState();
     const indicator = document.getElementById('newPostFileIndicator');
     if (!indicator) return;
-    const count = window.newPostImages.length;
-    if (count === 0) {
+    const imgs = window.newPostImages || [];
+    if (imgs.length === 0) {
       indicator.style.display = 'none';
+      indicator.innerHTML = '';
       return;
     }
-    indicator.textContent = count > 1
-      ? `✓ Прикреплено файлов: ${count} (альбом, можно листать)`
-      : `✓ Файл выбран`;
-    indicator.style.display = 'block';
+    const names = window.newPostFileNames || [];
+    const chips = imgs.map((src, i) => {
+      const label = newPostIsExternalLink ? src : (names[i] || ('Файл ' + (i + 1)));
+      return `<div class="np-file-chip">
+        <span class="np-file-chip-name" title="${escapeHtml(label)}">✓ ${escapeHtml(label)}</span>
+        <button type="button" class="np-file-chip-x" title="Убрать файл" aria-label="Убрать файл" onclick="removeNewPostFile(event, ${i})">✕</button>
+      </div>`;
+    }).join('');
+    const clearAll = imgs.length > 1
+      ? `<button type="button" class="np-file-clear-all" onclick="clearNewPostFiles(event)">Убрать все (${imgs.length})</button>`
+      : '';
+    indicator.innerHTML = chips + clearAll;
+    indicator.onclick = e => e.stopPropagation(); // клики по списку файлов не открывают диалог выбора
+    indicator.style.display = 'flex';
   }
+
+  // Убрать один прикреплённый файл из нового поста
+  window.removeNewPostFile = function (ev, index) {
+    if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+    const imgs = window.newPostImages || [];
+    if (index < 0 || index >= imgs.length) return;
+    imgs.splice(index, 1);
+    if (window.newPostFileNames) window.newPostFileNames.splice(index, 1);
+    newPostFileBase64 = imgs[0] || null;
+    if (imgs.length === 0) newPostIsExternalLink = false;
+    const input = document.getElementById('newPostFileInput');
+    if (input) input.value = '';
+    updateNewPostFileIndicator();
+    showToast('Файл убран из поста');
+  };
+
+  // Убрать все прикреплённые файлы
+  window.clearNewPostFiles = function (ev) {
+    if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+    window.newPostImages = [];
+    window.newPostFileNames = [];
+    newPostFileBase64 = null;
+    newPostIsExternalLink = false;
+    const input = document.getElementById('newPostFileInput');
+    if (input) input.value = '';
+    updateNewPostFileIndicator();
+    showToast('Все файлы убраны из поста');
+  };
 
   // Общая логика обработки выбранного файла (используется и для клика, и для drag-n-drop)
   function processNewPostFile(file, inputEl) {
@@ -1757,6 +1886,8 @@
     const reader = new FileReader();
     reader.onload = function(e) {
       window.newPostImages.push(e.target.result);
+      window.newPostFileNames = window.newPostFileNames || [];
+      window.newPostFileNames.push(file.name || '');
       newPostFileBase64 = window.newPostImages[0];
       newPostIsExternalLink = false;
       updateNewPostFileIndicator();
@@ -1769,6 +1900,8 @@
   function handleNewPostFileSelect(event) {
     const files = Array.from(event.target.files || []);
     files.forEach(file => processNewPostFile(file, event.target));
+    // сбрасываем значение, чтобы тот же файл можно было выбрать повторно после удаления
+    event.target.value = '';
   }
 
   // Перетаскивание файла в зону загрузки (drag-n-drop)
@@ -1825,9 +1958,8 @@
     newPostFileBase64 = link;
     newPostIsExternalLink = true;
     window.newPostImages = [link];
-    const indicator = document.getElementById('newPostFileIndicator');
-    indicator.textContent = `✓ Ссылка прикреплена: ${link}`;
-    indicator.style.display = 'block';
+    window.newPostFileNames = [];
+    updateNewPostFileIndicator();
     closeLinkUploadModal();
     showToast('Ссылка на файл прикреплена!');
   }
@@ -1863,6 +1995,7 @@
       avatarUrl: userAvatarUrl,
       text: fullText,
       image: newPostFileBase64,
+      fileName: (window.newPostFileNames && window.newPostFileNames[0]) || '',
       images: window.newPostImages.length > 1 ? window.newPostImages.slice() : [],
       isNSFW: !!window.newPostIsNSFW,
       accessMode: newPostAccessMode,
@@ -1872,20 +2005,28 @@
       votesUp: 0,
       votesDown: 0,
       pinned: false
-    }).then(() => {
+    }).then((docRef) => {
       hideActionLoader();
+      const publishedAsLink = newPostAccessMode === 'link';
       document.getElementById('newPostTitle').value = '';
       document.getElementById('newPostDesc').value = '';
       newPostFileBase64 = null;
       newPostIsExternalLink = false;
       window.newPostImages = [];
+      window.newPostFileNames = [];
       window.newPostIsNSFW = false;
       const nsfwBtn = document.getElementById('nsfwToggleBtn');
-      if (nsfwBtn) nsfwBtn.classList.remove('selected');
+      if (nsfwBtn) { nsfwBtn.classList.remove('selected'); nsfwBtn.setAttribute('aria-checked', 'false'); }
+      updateNewPostSubmitState();
       const ind = document.getElementById('newPostFileIndicator');
-      if (ind) ind.style.display = 'none';
-      showToast('Медиа-пост успешно опубликован в ленту!');
-      switchTab('photos');
+      if (ind) { ind.style.display = 'none'; ind.innerHTML = ''; }
+      if (publishedAsLink && docRef && docRef.id) {
+        switchTab('photos');
+        openPostLinkModal(docRef.id);
+      } else {
+        showToast('Медиа-пост успешно опубликован в ленту!');
+        switchTab('photos');
+      }
     }).catch(err => {
       hideActionLoader();
       console.error(err);
@@ -1901,11 +2042,31 @@
   }
   // Закрыть модалку входа
   function closeLoginModal() { loginModal.classList.remove('show'); }
+
+  // Открыть окно "нужна авторизация" для гостей — показывается вместо вкладки
+  // "Создать пост" и вместо формы "Предложить видео", если пользователь не вошёл.
+  // context: 'post' — попытка опубликовать пост, 'video' — попытка предложить видео.
+  function openAuthRequiredModal(context) {
+    const titleEl = document.getElementById('authRequiredTitle');
+    const descEl = document.getElementById('authRequiredDesc');
+    if (context === 'video') {
+      if (titleEl) titleEl.textContent = 'Предложить видео';
+      if (descEl) descEl.textContent = 'Чтобы предложить видео в ленту, необходимо авторизоваться!';
+    } else {
+      if (titleEl) titleEl.textContent = 'Загрузка файлов';
+      if (descEl) descEl.textContent = 'Для загрузки файлов и публикации постов необходимо авторизоваться!';
+    }
+    profileDropdown.classList.remove('show');
+    authRequiredModal.classList.add('show');
+  }
+  // Закрыть окно "нужна авторизация"
+  function closeAuthRequiredModal() { authRequiredModal.classList.remove('show'); }
   // Открыть модалку регистрации
   function openRegisterModal() {
     profileDropdown.classList.remove('show');
     registerModal.classList.add('show');
     mountTelegramAuthWidget('tgAuthWrapRegister');
+    regFormOpenedAt = Date.now(); // время открытия формы — используется антибот-проверкой (см. registerUser)
     const regUsernameEl = document.getElementById('regUsername');
     if (regUsernameEl && !regUsernameEl.value && tgUser) {
       regUsernameEl.value = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || tgUser.username || '';
@@ -1995,7 +2156,6 @@
     });
   }
 
-  // (Открытие истории активности теперь происходит через switchAccountSettingsTab('activity') внутри openAccountSettingsModal)
 
   // Открыть модалку редактирования профиля
   function openEditProfileModal() {
@@ -2277,7 +2437,7 @@
       }).catch(() => { followersCountEl.textContent = 0; });
     }
 
-    const userMsgs = currentMessagesList.filter(m => m.userId === userId || m.author === fallbackName);
+    const userMsgs = currentMessagesList.filter(m => (m.userId === userId || m.author === fallbackName) && (m.accessMode !== 'link' || isMe));
     currentProfileUserMsgs = userMsgs;
     document.getElementById('modalUserPostsCount').textContent = userMsgs.length;
     const postsCountHiddenEl = document.getElementById('modalUserPostsCountHidden');
@@ -2285,10 +2445,17 @@
 
     // Сброс на вкладку "Посты" при каждом открытии профиля
     currentProfileTab = 'posts';
-    const tabPostsBtn = document.getElementById('npTabPosts');
-    const tabHiddenBtn = document.getElementById('npTabHidden');
-    if (tabPostsBtn) tabPostsBtn.classList.add('active');
-    if (tabHiddenBtn) tabHiddenBtn.classList.remove('active');
+    currentProfileIsMe = isMe;
+    ['npTabPosts', 'npTabHidden', 'npTabSaved', 'npTabRatings', 'npTabComments'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('active', id === 'npTabPosts');
+    });
+    // Скрытые/Сохранённые/Оценки/Комментарии — личные данные текущего браузера,
+    // имеют смысл только на СВОЁМ профиле, у чужого их не показываем.
+    ['npTabHidden', 'npTabSaved', 'npTabRatings', 'npTabComments'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = isMe ? '' : 'none';
+    });
     resetProfileFilterPanel();
 
     renderCurrentProfilePosts();
@@ -2296,6 +2463,9 @@
 
   // Состояние панели фильтрации на странице профиля
   let profileFilterState = { period: 'all_time', sort: 'newest', type: 'all', censor: 'off' };
+  // true, если сейчас открыт СВОЙ профиль (а не чужой) — от этого зависит,
+  // показывать ли личные вкладки (Скрытые/Сохранённые/Оценки/Комментарии)
+  let currentProfileIsMe = false;
 
   // Открыть/закрыть панель фильтрации на странице профиля
   window.toggleProfileFilterPanel = function() {
@@ -2330,26 +2500,130 @@
     el.classList.add('active');
     renderCurrentProfilePosts();
   };
-  // Переключить вкладку "Посты" / "Скрытые" на странице профиля
+  // Переключить вкладку (Посты/Скрытые/Сохранённые/Оценки/Комментарии) на странице профиля
   window.switchProfilePostsTab = function (tab) {
     currentProfileTab = tab;
-    const tabPostsBtn = document.getElementById('npTabPosts');
-    const tabHiddenBtn = document.getElementById('npTabHidden');
-    if (tabPostsBtn) tabPostsBtn.classList.toggle('active', tab === 'posts');
-    if (tabHiddenBtn) tabHiddenBtn.classList.toggle('active', tab === 'hidden');
+    const idByTab = { posts: 'npTabPosts', hidden: 'npTabHidden', saved: 'npTabSaved', ratings: 'npTabRatings', comments: 'npTabComments' };
+    Object.keys(idByTab).forEach(key => {
+      const el = document.getElementById(idByTab[key]);
+      if (el) el.classList.toggle('active', key === tab);
+    });
     renderCurrentProfilePosts();
   };
+
+  // Общий рендер карточек постов (переиспользуется вкладками Посты/Сохранённые/Оценки)
+  function renderProfilePostCards(list, opts) {
+    opts = opts || {};
+    return list.map(m => {
+      const timeInfo = formatMessageTime(m.createdAt, m.localTime);
+      const linkBadge = m.accessMode === 'link' ? '<span class="np-link-badge">только по ссылке</span>' : '';
+      const copyBtn = m.image ? `<button type="button" class="np-copy-link-btn" onclick="copyPostLink('${m.id}')">Скопировать ссылку</button>` : '';
+      const extraBadge = opts.badgeFor ? (opts.badgeFor(m) || '') : '';
+      return `
+        <div class="np-profile-post-card">
+          <div class="np-profile-post-time">${timeInfo.display} ${linkBadge} ${extraBadge}</div>
+          <div>${escapeHtml(m.text || '')}</div>
+          ${copyBtn}
+        </div>
+      `;
+    }).join('');
+  }
 
   // Отрисовать публикации текущего просматриваемого профиля с учётом вкладки и сортировки
   window.renderCurrentProfilePosts = function () {
     const msgsContainer = document.getElementById('modalUserMessages');
     if (!msgsContainer) return;
 
+    // ---------- Скрытые: список скрытых автором авторов (личное, только на своём профиле) ----------
     if (currentProfileTab === 'hidden') {
-      msgsContainer.innerHTML = '<div class="np-profile-empty">Скрытых публикаций нет</div>';
+      const all = pruneHiddenAuthors();
+      const keys = Object.keys(all);
+      if (keys.length === 0) {
+        msgsContainer.innerHTML = '<div class="np-profile-empty">Вы никого не скрывали. Нажмите «⋮» → «Не интересно» на посте в ленте.</div>';
+        return;
+      }
+      msgsContainer.innerHTML = `<div class="st-list">${keys.map(k => {
+        const e = all[k];
+        const nm = e.name || 'автор';
+        return `<div class="st-row">
+          <div class="st-avatar">${escapeHtml((nm[0] || '?')).toUpperCase()}</div>
+          <div class="st-row-info"><div class="st-row-name">@${escapeHtml(nm)}</div><div class="st-row-sub">${escapeHtml(hiddenUntilLabel(e))}</div></div>
+          <button type="button" class="st-unhide" data-key="${escapeHtml(k)}">Вернуть</button>
+        </div>`;
+      }).join('')}</div>`;
+      msgsContainer.querySelectorAll('.st-unhide').forEach(btn => {
+        btn.onclick = () => {
+          const store = loadHiddenAuthors();
+          delete store[btn.getAttribute('data-key')];
+          saveHiddenAuthors(store);
+          renderCurrentProfilePosts();
+          renderPhotosGrid();
+          showToast('Автор снова в ленте');
+        };
+      });
       return;
     }
 
+    // ---------- Сохранённые: посты, добавленные через «⋮» → «Сохранить» ----------
+    if (currentProfileTab === 'saved') {
+      const savedIds = loadSavedPosts();
+      const list = currentMessagesList.filter(m => savedIds.includes(m.id))
+        .sort((a, b) => {
+          const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.localTime || 0);
+          const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.localTime || 0);
+          return tB - tA;
+        });
+      msgsContainer.innerHTML = list.length === 0
+        ? '<div class="np-profile-empty">Сохранённых публикаций нет. Нажмите «⋮» → «Сохранить» на посте в ленте.</div>'
+        : renderProfilePostCards(list);
+      return;
+    }
+
+    // ---------- Оценки: посты, за которые голосовали ⬆/⬇ или ставили эмодзи-реакцию ----------
+    if (currentProfileTab === 'ratings') {
+      const ratedIds = getRatedPostIds();
+      const list = currentMessagesList.filter(m => ratedIds.has(m.id))
+        .sort((a, b) => {
+          const tA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.localTime || 0);
+          const tB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.localTime || 0);
+          return tB - tA;
+        });
+      msgsContainer.innerHTML = list.length === 0
+        ? '<div class="np-profile-empty">Вы пока не оценивали посты.</div>'
+        : renderProfilePostCards(list, {
+            badgeFor: m => {
+              const vote = localStorage.getItem(`postvote_${m.id}`);
+              if (vote === 'up') return '<span class="np-link-badge">ваш голос: ⬆</span>';
+              if (vote === 'down') return '<span class="np-link-badge">ваш голос: ⬇</span>';
+              return '<span class="np-link-badge">ваша реакция</span>';
+            }
+          });
+      return;
+    }
+
+    // ---------- Комментарии: локальная история собственных комментариев ----------
+    if (currentProfileTab === 'comments') {
+      const mine = loadMyComments().slice().reverse(); // новые сверху
+      if (mine.length === 0) {
+        msgsContainer.innerHTML = '<div class="np-profile-empty">Вы пока не оставляли комментариев.</div>';
+        return;
+      }
+      msgsContainer.innerHTML = mine.map(c => {
+        const post = currentMessagesList.find(m => m.id === c.msgId);
+        const timeInfo = formatMessageTime(null, c.ts);
+        const postPreview = post ? escapeHtml((post.text || '').slice(0, 60)) : 'пост недоступен';
+        return `
+          <div class="np-profile-post-card">
+            <div class="np-profile-post-time">${timeInfo.display}</div>
+            <div style="color: var(--muted); font-size: 12px; margin-bottom: 4px;">Комментарий к посту: «${postPreview}${post && (post.text || '').length > 60 ? '…' : ''}»</div>
+            <div>${escapeHtml(c.text)}</div>
+          </div>
+        `;
+      }).join('');
+      return;
+    }
+
+    // ---------- Посты (по умолчанию) ----------
     if (currentProfileUserMsgs.length === 0) {
       msgsContainer.innerHTML = '<div class="np-profile-empty">Здесь пока нет публикаций.</div>';
       return;
@@ -2384,15 +2658,7 @@
       return sortMode === 'oldest' ? timeA - timeB : timeB - timeA;
     });
 
-    msgsContainer.innerHTML = sorted.map(m => {
-      const timeInfo = formatMessageTime(m.createdAt, m.localTime);
-      return `
-        <div class="np-profile-post-card">
-          <div class="np-profile-post-time">${timeInfo.display}</div>
-          <div>${escapeHtml(m.text || '')}</div>
-        </div>
-      `;
-    }).join('');
+    msgsContainer.innerHTML = renderProfilePostCards(sorted);
   };
 
   // Единая функция подписки/отписки от автора (используется и в профиле, и в просмотре поста)
@@ -2652,7 +2918,7 @@
   subsAdminModal.addEventListener('click', (e) => { if (e.target === subsAdminModal) closeSubsAdminModal(); });
   banAdminModal.addEventListener('click', (e) => { if (e.target === banAdminModal) closeBanAdminModal(); });
   topDonatorsModal.addEventListener('click', (e) => { if (e.target === topDonatorsModal) closeTopDonatorsModal(); });
-  accountSettingsModal.addEventListener('click', (e) => { if (e.target === accountSettingsModal) closeAccountSettingsModal(); });
+  settingsModal.addEventListener('click', (e) => { if (e.target === settingsModal) closeSettingsModal(); });
 
   const themeToggleBtn = document.getElementById('themeToggleBtn');
   const sunIcon = document.getElementById('sunIcon');
@@ -3177,6 +3443,8 @@
   let selectedSuggestCategory = 'Смешные';
   let suggestVideoId = null;
   let suggestVideoTitle = '';
+  let suggestVideoPlatform = null;
+  let suggestVideoThumb = '';
 
   const errorToast = document.getElementById('errorToast');
   const statTotalUsersEl = document.getElementById('statTotalUsers');
@@ -3209,6 +3477,10 @@
   }
 
   // Отправить сообщение в гостевую книгу
+  // Антиспам: минимальный интервал между отправкой сообщений в гостевой книге (защита от скриптового спама через UI)
+  let lastGbSendAt = 0;
+  const GB_SEND_MIN_INTERVAL_MS = 4000;
+
   function sendGuestbookMessage() {
     const user = auth.currentUser;
     if (!user || !currentUserProfile) {
@@ -3219,12 +3491,23 @@
 
     if (blockedByRestriction('guestbook', 'Написание сообщений в гостевой книге')) return;
 
+    const now = Date.now();
+    if (now - lastGbSendAt < GB_SEND_MIN_INTERVAL_MS) {
+      showToast(`Не так быстро! Подождите ${Math.ceil((GB_SEND_MIN_INTERVAL_MS - (now - lastGbSendAt)) / 1000)} сек.`, 'error');
+      return;
+    }
+
     const text = gbInput.value.trim();
     if (!text) {
       showToast('Введите текст сообщения', 'error');
       return;
     }
+    if (text.length > 100) {
+      showToast('Сообщение слишком длинное — максимум 100 символов', 'error');
+      return;
+    }
 
+    lastGbSendAt = now;
     gbSendBtn.disabled = true;
 
     db.collection('messages').add({
@@ -4075,44 +4358,6 @@
     });
   };
 
-  // Отрисовать историю активности пользователя
-  function renderActivityHistory() {
-    const historyContainer = document.getElementById('activityHistoryList');
-    historyContainer.innerHTML = '';
-
-    const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
-    const currentUserName = currentUserProfile ? currentUserProfile.username : (auth.currentUser ? auth.currentUser.displayName : null);
-
-    const userMsgs = currentMessagesList.filter(m => {
-      if (currentUserId && m.userId === currentUserId) return true;
-      if (currentUserName && m.author === currentUserName) return true;
-      return false;
-    });
-
-    if (userMsgs.length === 0) {
-      historyContainer.innerHTML = '<div style="color: var(--muted); text-align: center; padding: 20px;">У вас пока нет сохраненных постов или сообщений.</div>';
-      return;
-    }
-
-    userMsgs.forEach(m => {
-      const timeInfo = formatMessageTime(m.createdAt, m.localTime);
-      const div = document.createElement('div');
-      div.style.cssText = 'background: rgba(150,150,150,0.04); border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 6px;';
-      
-      let imgHtml = m.image ? `<img src="${m.image}" class="gb-image-thumb" />` : '';
-
-      div.innerHTML = `
-        <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--muted);">
-          <span>${m.image ? 'Медиа-пост в ленту' : 'Сообщение в гостевой'}</span>
-          <span>${timeInfo.display}</span>
-        </div>
-        <div style="font-size: 13.5px; color: var(--text);">${escapeHtml(m.text)}</div>
-        ${imgHtml}
-      `;
-      historyContainer.appendChild(div);
-    });
-  }
-
   window.deleteReportedMessage = function(reportId, messageId) {
     if (!isAdmin()) return;
     db.collection('messages').doc(messageId).delete().then(() => {
@@ -4191,13 +4436,33 @@
   };
 
   // Зарегистрировать нового пользователя (email/пароль)
+  // Время открытия формы регистрации — простая антибот-проверка "слишком быстрое заполнение" (см. ниже)
+  let regFormOpenedAt = 0;
+
   function registerUser() {
     const username = document.getElementById('regUsername').value.trim();
     const email = document.getElementById('regEmail').value.trim();
     const password = document.getElementById('regPassword').value.trim();
 
+    // Антибот-проверка №1: honeypot-поле — невидимо человеку, но простые боты-автозаполнялки его находят и заполняют
+    const honeypotEl = document.getElementById('regHoneypot');
+    if (honeypotEl && honeypotEl.value.trim() !== '') {
+      console.warn('Antibot: honeypot triggered on register');
+      showToast('Ошибка регистрации. Попробуйте ещё раз.', 'error');
+      return;
+    }
+    // Антибот-проверка №2: форма заполнена и отправлена мгновенно (< 1.2с) — типично для скриптовых ботов
+    if (regFormOpenedAt && Date.now() - regFormOpenedAt < 1200) {
+      showToast('Слишком быстро! Попробуйте ещё раз через пару секунд.', 'error');
+      return;
+    }
+
     if (!username || !email || !password) {
       showToast('Заполните все поля!', 'error');
+      return;
+    }
+    if (!isSafeUsername(username)) {
+      showToast('Ник: 2-30 символов, только буквы/цифры/пробел/_/-/.  (без кавычек и спецсимволов)', 'error');
       return;
     }
     if (password.length < 6) {
@@ -4334,6 +4599,15 @@
     }
   }
 
+  // Проверка ника на безопасные символы (защита от XSS-инъекции через inline onclick-обработчики,
+  // куда ник подставляется во многих местах сайта). Разрешены буквы (лат./рус.), цифры, пробел,
+  // _ - . — запрещены кавычки, угловые скобки, обратный слэш и т.п.
+  function isSafeUsername(name) {
+    return typeof name === 'string' &&
+      name.length >= 2 && name.length <= 30 &&
+      /^[a-zA-Zа-яА-ЯёЁ0-9 _.\-]+$/.test(name);
+  }
+
   // Сохранить изменения профиля
   function saveProfileChanges() {
     const user = auth.currentUser;
@@ -4347,6 +4621,11 @@
     const newBirthday = document.getElementById('editBirthdayInput').value.trim();
     const nickColorCustomEl = document.getElementById('nickColorCustomInput');
     const newNickColor = nickColorCustomEl ? (nickColorCustomEl.value.trim() || nickColorCustomEl.dataset.picked || '') : '';
+
+    if (!isSafeUsername(newUsername)) {
+      showToast('Ник: 2-30 символов, только буквы/цифры/пробел/_/-/.  (без кавычек и спецсимволов)', 'error');
+      return;
+    }
 
     if (!newUsername) {
       showToast('Никнейм не может быть пустым!', 'error');
@@ -4402,6 +4681,10 @@
     const dropdownAvatarBox = document.getElementById('dropdownAvatarBox');
     renderTgAccountSwitcher();
 
+    // Подпись последней кнопки нижнего мобильного меню: "Войти" для гостя, "Профиль" для вошедшего
+    const mbnProfileLabel = document.getElementById('mbnProfileLabel');
+    if (mbnProfileLabel) mbnProfileLabel.textContent = user ? 'Профиль' : 'Войти';
+
     if (gbInput && gbSendBtn) {
       if (user && profile) {
         gbInput.disabled = false;
@@ -4444,10 +4727,6 @@
         <a href="#" class="dropdown-item" onclick="event.preventDefault(); openMyProfileModal()">
           <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           Профиль
-        </a>
-        <a href="#" class="dropdown-item" onclick="event.preventDefault(); openAccountSettingsModal()">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          Настройки
         </a>
         <a href="#" class="dropdown-item logout" onclick="event.preventDefault(); logoutUser()">
           <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -4600,6 +4879,7 @@
     renderFriendsList();
     initialMessagesLoaded = true;
     tryHideInitialLoader();
+    tryOpenDeepLinkPost();
   });
 
   db.collection('videos').onSnapshot((snapshot) => {
@@ -4722,10 +5002,10 @@
         div.style.cssText = 'background: rgba(150,150,150,0.05); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between;';
         div.innerHTML = `
           <div style="display: flex; align-items: center; gap: 10px; cursor: pointer;" onclick="openUserProfile('${fId}', '${escapeHtml(fData.username)}', '${escapeHtml(fData.avatarUrl || '')}')">
-            <div style="width:34px; height:34px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; overflow:hidden;">
+            <div class="${premiumUsersMap[fId] && premiumUsersMap[fId].subTier === 'premium' ? 'avatar-frame-premium' : ''}" style="width:34px; height:34px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; overflow:hidden;">
               ${fData.avatarUrl ? `<img src="${escapeHtml(fData.avatarUrl)}" style="width:100%;height:100%;object-fit:cover;">` : (fData.username || 'U')[0].toUpperCase()}
             </div>
-            <span style="font-weight:600; color:var(--text); font-size:13.5px;">${escapeHtml(fData.username || 'Пользователь')}</span>
+            <span style="font-weight:600; font-size:13.5px;" ${getUserNameStyle(fId)}>${escapeHtml(fData.username || 'Пользователь')}</span>${getUserBadgeHTML(fId)}
           </div>
           <button class="reaction-btn" style="color:var(--danger);" onclick="toggleFriend('${fId}')">Удалить</button>
         `;
@@ -4779,6 +5059,32 @@
     return m && m[1] ? m[1] : null;
   }
 
+  // Определить платформу видео (YouTube / RUTUBE / TikTok) и извлечь ID
+  function detectVideoLink(url) {
+    if (!url) return null;
+
+    const ytId = extractYoutubeId(url);
+    if (ytId) return { platform: 'youtube', id: ytId };
+
+    const ruMatch = url.match(/rutube\.ru\/(?:video|play\/embed|shorts)\/([a-zA-Z0-9_-]+)/i);
+    if (ruMatch && ruMatch[1]) return { platform: 'rutube', id: ruMatch[1] };
+
+    if (/tiktok\.com/i.test(url)) {
+      const ttMatch = url.match(/tiktok\.com\/@[\w.-]+\/video\/(\d+)/i) || url.match(/(?:vm|vt)\.tiktok\.com\/([A-Za-z0-9]+)/i);
+      if (ttMatch && ttMatch[1]) return { platform: 'tiktok', id: ttMatch[1] };
+    }
+
+    return null;
+  }
+
+  // Человекочитаемое название платформы + бейдж для карточки видео
+  const VIDEO_PLATFORM_LABELS = { youtube: 'YouTube', rutube: 'RUTUBE', tiktok: 'TikTok' };
+  const VIDEO_PLATFORM_COLORS = {
+    youtube: 'linear-gradient(135deg,#ff4d4d,#b30000)',
+    rutube: 'linear-gradient(135deg,#2fa8e0,#1a5f96)',
+    tiktok: 'linear-gradient(135deg,#25f4ee,#ff0050)'
+  };
+
   window.filterVideos = function(category, btnEl) {
     currentVideoFilter = category;
     document.querySelectorAll('#videoFilterBar .video-filter-btn').forEach(b => b.classList.remove('active'));
@@ -4787,23 +5093,57 @@
   };
 
   window.handleVideoUrlInput = function(url) {
-    const videoId = extractYoutubeId(url);
+    const info = detectVideoLink(url);
     const box = document.getElementById('suggestPreviewBox');
     const text = document.getElementById('suggestPreviewText');
-    if (videoId) {
-      suggestVideoId = videoId;
-      box.style.backgroundImage = `url('https://img.youtube.com/vi/${videoId}/hqdefault.jpg')`;
+
+    if (!info) {
+      suggestVideoId = null;
+      suggestVideoPlatform = null;
+      suggestVideoTitle = '';
+      suggestVideoThumb = '';
+      box.style.backgroundImage = 'none';
+      if (text) text.textContent = 'Превью видео появится здесь';
+      return;
+    }
+
+    suggestVideoId = info.id;
+    suggestVideoPlatform = info.platform;
+    suggestVideoTitle = '';
+    suggestVideoThumb = '';
+
+    if (info.platform === 'youtube') {
+      suggestVideoThumb = `https://img.youtube.com/vi/${info.id}/hqdefault.jpg`;
+      box.style.backgroundImage = `url('${suggestVideoThumb}')`;
       if (text) text.textContent = 'Видео найдено ✓';
-      fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`)
+      fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${info.id}&format=json`)
         .then(r => r.ok ? r.json() : null)
         .then(data => { suggestVideoTitle = (data && data.title) ? data.title : ''; })
         .catch(() => { suggestVideoTitle = ''; });
-    } else {
-      suggestVideoId = null;
-      suggestVideoTitle = '';
-      box.style.backgroundImage = 'none';
-      if (text) text.textContent = 'Превью видео появится здесь';
+      return;
     }
+
+    // RUTUBE / TikTok — превью и название подтягиваем через их oEmbed
+    box.style.backgroundImage = 'none';
+    if (text) text.textContent = `Видео найдено ✓ (${VIDEO_PLATFORM_LABELS[info.platform]}, загрузка превью...)`;
+
+    const oembedUrl = info.platform === 'rutube'
+      ? `https://rutube.ru/api/oembed/?url=${encodeURIComponent(url)}&format=json`
+      : `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
+
+    fetch(oembedUrl)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.thumbnail_url) {
+          suggestVideoThumb = data.thumbnail_url;
+          box.style.backgroundImage = `url('${suggestVideoThumb}')`;
+        }
+        suggestVideoTitle = (data && data.title) ? data.title : '';
+        if (text) text.textContent = `Видео найдено ✓ (${VIDEO_PLATFORM_LABELS[info.platform]})`;
+      })
+      .catch(() => {
+        if (text) text.textContent = `Видео найдено ✓ (${VIDEO_PLATFORM_LABELS[info.platform]}, превью недоступно)`;
+      });
   };
 
   window.selectSuggestCategory = function(btnEl, category) {
@@ -4818,15 +5158,18 @@
     const commentInput = document.getElementById('suggestVideoComment');
     const url = urlInput.value.trim();
     const comment = commentInput.value.trim();
-    const videoId = extractYoutubeId(url);
+    const info = detectVideoLink(url);
 
-    if (!url || !videoId) {
-      showToast('Вставьте корректную ссылку на видео с YouTube!', 'error');
+    if (!url || !info) {
+      showToast('Вставьте корректную ссылку на видео с YouTube, RUTUBE или TikTok!', 'error');
       return;
     }
 
+    const videoId = info.id;
+    const platform = info.platform;
+
     // Проверка на дубликат: такое видео уже есть в списке
-    const alreadyExists = currentVideosList.some(v => v.videoId === videoId);
+    const alreadyExists = currentVideosList.some(v => v.url === url || (v.platform === platform && v.videoId === videoId));
     if (alreadyExists) {
       showToast('Такое видео уже есть на сайте!', 'error');
       return;
@@ -4841,6 +5184,8 @@
 
     db.collection('videos').add({
       videoId: videoId,
+      platform: platform,
+      thumbnailUrl: suggestVideoThumb || '',
       url: url,
       title: suggestVideoTitle || 'Видео без названия',
       category: selectedSuggestCategory,
@@ -4863,9 +5208,14 @@
     });
   };
 
-  window.playVideoCard = function(containerEl, videoId) {
-    // Переносим пользователя на YouTube в новой вкладке вместо показа видео на сайте
-    window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank', 'noopener');
+  window.playVideoCard = function(containerEl, videoDocId) {
+    // Переносим пользователя на исходную платформу (YouTube/RUTUBE/TikTok) в новой вкладке
+    const v = currentVideosList.find(item => item.id === videoDocId);
+    if (v && v.url) {
+      window.open(v.url, '_blank', 'noopener');
+    } else if (v && v.platform === 'youtube' && v.videoId) {
+      window.open(`https://www.youtube.com/watch?v=${v.videoId}`, '_blank', 'noopener');
+    }
   };
 
   window.likeVideo = function(id) {
@@ -4927,10 +5277,17 @@
         adminBtn = `<button onclick="event.stopPropagation(); deleteVideo('${v.id}')" title="Удалить видео" style="position:absolute; top:10px; right:10px; background: rgba(239,68,68,0.9); border:none; color:#fff; display:flex; align-items:center; justify-content:center; width:26px; height:26px; padding:0; border-radius:6px; z-index:20; cursor:pointer;"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg></button>`;
       }
 
+      const platform = v.platform || 'youtube';
+      const thumbUrl = v.thumbnailUrl || (platform === 'youtube' ? `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg` : '');
+      const thumbStyle = thumbUrl
+        ? `background-image: url('${thumbUrl}');`
+        : `background: ${VIDEO_PLATFORM_COLORS[platform] || VIDEO_PLATFORM_COLORS.youtube};`;
+
       card.innerHTML = `
-        <div class="video-thumb-container" style="background-image: url('https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg');" onclick="playVideoCard(this, '${v.videoId}')">
+        <div class="video-thumb-container" style="${thumbStyle}" onclick="playVideoCard(this, '${v.id}')">
           ${adminBtn}
           <span class="video-badge">▶ ${escapeHtml(v.category || '')}</span>
+          ${platform !== 'youtube' ? `<span class="video-badge" style="left:auto; right:10px;">${VIDEO_PLATFORM_LABELS[platform] || platform}</span>` : ''}
         </div>
         <div class="video-info-box">
           <div class="video-title">${escapeHtml(v.title || 'Видео без названия')}</div>
@@ -5152,7 +5509,7 @@
       // В ленте контент нельзя раскрыть прямо с плашки — клик только открывает пост,
       // а снять цензуру можно уже внутри поста кнопкой "Нажмите, чтобы открыть материалы".
       return `
-        <div class="nsfw-censor-badge" data-nsfw-overlay="${msgId}" title="18+ контент — откройте пост, чтобы посмотреть">
+        <div class="nsfw-censor-badge" data-nsfw-overlay="${msgId}" title="Не для стрима — откройте пост, чтобы посмотреть">
           <div class="nsfw-censor-badge-icon">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
           </div>
@@ -5162,7 +5519,7 @@
       <div class="nsfw-censor-overlay" data-nsfw-overlay="${msgId}" onclick="revealNsfwPost('${msgId}', event)">
         <div class="nsfw-censor-box">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-          <div class="nsfw-censor-title">Контент скрыт цензурой</div>
+          <div class="nsfw-censor-title">Не для стрима</div>
           <div class="nsfw-censor-hint">Нажмите, чтобы открыть материалы</div>
         </div>
       </div>`;
@@ -5337,6 +5694,9 @@
       return timeB - timeA;
     });
 
+    // «Не интересно»: скрываем авторов, которых пользователь скрыл на выбранный срок
+    feedList = feedList.filter(m => !isAuthorHidden(m));
+
     if (feedList.length === 0) {
       grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--muted); font-size: 14px;">В ленте по заданным фильтрам ничего нет. В ленте публикуются сугубо видео, фото и аудио файлы!</div>`;
       return;
@@ -5366,7 +5726,7 @@
       const albumBadge = albumImgs.length > 1
         ? `<div class="photo-album-count-badge"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2"></rect><path d="M7 21h10a2 2 0 0 0 2-2V7"></path></svg>${albumImgs.length}</div>`
         : '';
-      const nsfwPill = p.isNSFW ? `<div class="nsfw-tag-pill">18+</div>` : '';
+      const nsfwPill = p.isNSFW ? `<div class="nsfw-tag-pill">Не для стрима</div>` : '';
       const nsfwOverlay = isNsfwHidden ? nsfwOverlayHTML(p.id, true) : '';
       const blurClass = isNsfwHidden ? ' nsfw-blurred' : '';
 
@@ -5404,6 +5764,7 @@
             <span class="photo-author-name">@${escapeHtml(p.author)}</span>
             <span class="photo-author-dot">·</span>
             <span class="photo-author-time">${timeInfo.display}</span>
+            <button type="button" class="photo-menu-btn" title="Ещё" aria-label="Ещё" onclick="openPostMenu(event, '${p.id}')"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg></button>
           </div>
           <div class="photo-title">${escapeHtml(parsed.title)}</div>
           ${parsed.desc ? `<div class="photo-desc">${escapeHtml(parsed.desc)}</div>` : ''}
@@ -5417,8 +5778,346 @@
     });
   }
 
+  // =====================================================================
+  //  Меню «⋮» на карточке поста: Сохранить / Скопировать ссылку /
+  //  Не интересно (скрыть автора на срок) / Пожаловаться
+  // =====================================================================
+  const HIDDEN_AUTHORS_KEY = 'discoragen_hidden_authors';
+  const SAVED_POSTS_KEY = 'discoragen_saved_posts';
+
+  function authorKeyOf(p) { return p.userId ? String(p.userId) : 'n:' + (p.author || ''); }
+
+  function loadHiddenAuthors() {
+    try {
+      const o = JSON.parse(localStorage.getItem(HIDDEN_AUTHORS_KEY) || '{}');
+      return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    } catch (e) { return {}; }
+  }
+  function saveHiddenAuthors(o) {
+    try { localStorage.setItem(HIDDEN_AUTHORS_KEY, JSON.stringify(o)); } catch (e) {}
+  }
+  // until === 0 — навсегда; иначе метка времени, когда автор снова появится
+  function isAuthorHidden(p) {
+    const all = loadHiddenAuthors();
+    const key = authorKeyOf(p);
+    const e = all[key];
+    if (!e) return false;
+    if (e.until === 0 || e.until > Date.now()) return true;
+    delete all[key];
+    saveHiddenAuthors(all);
+    return false;
+  }
+  window.unhideAllAuthors = function () {
+    saveHiddenAuthors({});
+    renderPhotosGrid();
+    showToast('Скрытые авторы снова в ленте');
+  };
+
+  function loadSavedPosts() {
+    try {
+      const a = JSON.parse(localStorage.getItem(SAVED_POSTS_KEY) || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+  function toggleSavedPost(id) {
+    const list = loadSavedPosts();
+    const i = list.indexOf(id);
+    if (i === -1) list.push(id); else list.splice(i, 1);
+    try { localStorage.setItem(SAVED_POSTS_KEY, JSON.stringify(list)); } catch (e) {}
+    showToast(i === -1 ? 'Пост сохранён' : 'Пост убран из сохранённых');
+    // Вкладка «Сохранённые» в профиле могла быть открыта в этот момент
+    if (typeof currentProfileTab !== 'undefined' && currentProfileTab === 'saved') renderCurrentProfilePosts();
+  }
+
+  // ---------- Вкладка «Оценки» в профиле: посты, за которые голосовал ⬆/⬇ или ставил эмодзи-реакцию ----------
+  // Голоса лежат в localStorage как postvote_<id> ('up'/'down') и voted_<id>_<emoji> ('true') —
+  // отдельного реестра айдишников нет, поэтому собираем его сканированием ключей.
+  function getRatedPostIds() {
+    const ids = new Set();
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key.startsWith('postvote_')) {
+        ids.add(key.slice('postvote_'.length));
+      } else if (key.startsWith('voted_') && localStorage.getItem(key) === 'true') {
+        // формат ключа: voted_<id>_<emoji>, у эмодзи может быть внутри "_" не бывает, но на всякий
+        // случай отрежем последний "_..." сегмент как эмодзи
+        const rest = key.slice('voted_'.length);
+        const lastUnderscore = rest.lastIndexOf('_');
+        if (lastUnderscore > 0) ids.add(rest.slice(0, lastUnderscore));
+      }
+    }
+    return ids;
+  }
+
+  // ---------- Вкладка «Комментарии» в профиле: локальная история своих комментариев ----------
+  const MY_COMMENTS_KEY = 'discoragen_my_comments';
+  const MY_COMMENTS_LIMIT = 300;
+
+  function loadMyComments() {
+    try {
+      const a = JSON.parse(localStorage.getItem(MY_COMMENTS_KEY) || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+  function addMyComment(msgId, text) {
+    const list = loadMyComments();
+    list.push({ msgId, text, ts: Date.now() });
+    while (list.length > MY_COMMENTS_LIMIT) list.shift();
+    try { localStorage.setItem(MY_COMMENTS_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  function closePostMenu() {
+    const m = document.getElementById('postMenu');
+    if (m) m.remove();
+    document.querySelectorAll('.photo-menu-btn.active').forEach(b => b.classList.remove('active'));
+  }
+
+  window.openPostMenu = function (ev, postId) {
+    ev.stopPropagation();
+    ev.preventDefault();
+    const btn = ev.currentTarget;
+    const wasOpenForThis = btn.classList.contains('active');
+    closePostMenu();
+    if (wasOpenForThis) return;
+
+    // закрываем остальные выпадашки шапки/ленты, чтобы не наслаиваться
+    document.querySelectorAll('.custom-dropdown-menu').forEach(m => m.classList.remove('show'));
+    const sd = document.getElementById('smartSearchDropdown');
+    if (sd) sd.style.display = 'none';
+
+    const post = currentMessagesList.find(m => m.id === postId);
+    if (!post) return;
+    const saved = loadSavedPosts().includes(postId);
+
+    const menu = document.createElement('div');
+    menu.id = 'postMenu';
+    menu.className = 'post-menu';
+    menu.onclick = e => e.stopPropagation();
+    menu.innerHTML = `
+      <button type="button" class="post-menu-item" data-act="save">
+        <svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"${saved ? ' fill="currentColor"' : ''}/></svg>
+        <span>${saved ? 'Убрать из сохранённых' : 'Сохранить'}</span>
+      </button>
+      <button type="button" class="post-menu-item" data-act="copy">
+        <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 0 0-7.07-7.07L11 4.93"/><path d="M14 11a5 5 0 0 0-7.07 0L4.1 13.83a5 5 0 0 0 7.07 7.07L13 19.07"/></svg>
+        <span>Скопировать ссылку</span>
+      </button>
+      <div class="post-menu-sep"></div>
+      <button type="button" class="post-menu-item" data-act="hide">
+        <svg viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        <span>Не интересно<small>Скрыть автора из ленты — выбрать срок</small></span>
+      </button>
+      <button type="button" class="post-menu-item danger" data-act="report">
+        <svg viewBox="0 0 24 24"><path d="M4 21V4"/><path d="M4 4h14l-2.5 4L18 12H4"/></svg>
+        <span>Пожаловаться</span>
+      </button>`;
+    document.body.appendChild(menu);
+    btn.classList.add('active');
+
+    // позиция: под кнопкой, прижато к её правому краю, в пределах экрана
+    const r = btn.getBoundingClientRect();
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    let left = Math.min(Math.max(8, r.right - mw), window.innerWidth - mw - 8);
+    let top = r.bottom + 6;
+    if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 6);
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+
+    menu.querySelectorAll('.post-menu-item').forEach(item => {
+      item.onclick = () => {
+        const act = item.getAttribute('data-act');
+        closePostMenu();
+        if (act === 'save') toggleSavedPost(postId);
+        else if (act === 'copy') copyPostLink(postId);
+        else if (act === 'hide') openNotInterestedModal(postId);
+        else if (act === 'report') reportMessage(postId);
+      };
+    });
+  };
+
+  document.addEventListener('click', closePostMenu);
+  window.addEventListener('resize', closePostMenu);
+  window.addEventListener('scroll', closePostMenu, true);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closePostMenu(); closeNotInterestedModal(); }
+  });
+
+  // ---------- Окно «Не интересно» ----------
+  const NI_DURATIONS = [
+    { days: 1,  label: '1 день' },
+    { days: 7,  label: '7 дней' },
+    { days: 14, label: '14 дней' },
+    { days: 30, label: '30 дней' },
+    { days: 0,  label: 'Навсегда' }
+  ];
+
+  function closeNotInterestedModal() {
+    const o = document.getElementById('niOverlay');
+    if (o) o.remove();
+  }
+
+  window.openNotInterestedModal = function (postId) {
+    const post = currentMessagesList.find(m => m.id === postId);
+    if (!post) return;
+    closeNotInterestedModal();
+
+    const name = post.author || 'автора';
+    let chosen = 30;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'niOverlay';
+    overlay.className = 'ni-overlay';
+    overlay.innerHTML = `
+      <div class="ni-box" role="dialog" aria-modal="true" aria-label="Не интересно">
+        <div class="ni-head">
+          <div class="ni-title">Не интересно</div>
+          <button type="button" class="ni-close" aria-label="Закрыть">✕</button>
+        </div>
+        <div class="ni-body">
+          <div class="ni-note"><b>Посты ${escapeHtml(name)} пропадут из вашей ленты.</b> Профиль, поиск и прямые ссылки останутся доступными. Автор об этом не узнает.</div>
+          <div class="ni-label">На какой срок скрыть</div>
+          <div class="ni-options">
+            ${NI_DURATIONS.map(d => `
+              <label class="ni-opt${d.days === chosen ? ' selected' : ''}" data-days="${d.days}">
+                <input type="radio" name="niDuration" value="${d.days}"${d.days === chosen ? ' checked' : ''}>
+                <span class="ni-radio"></span>
+                <span>${d.label}</span>
+              </label>`).join('')}
+          </div>
+          <button type="button" class="ni-submit">Скрыть</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeNotInterestedModal(); });
+    overlay.querySelector('.ni-close').onclick = closeNotInterestedModal;
+    overlay.querySelectorAll('.ni-opt').forEach(opt => {
+      opt.addEventListener('click', () => {
+        chosen = Number(opt.getAttribute('data-days'));
+        overlay.querySelectorAll('.ni-opt').forEach(o => o.classList.toggle('selected', o === opt));
+      });
+    });
+    overlay.querySelector('.ni-submit').onclick = () => {
+      const all = pruneHiddenAuthors();
+      if (!all[authorKeyOf(post)] && Object.keys(all).length >= HIDDEN_AUTHORS_LIMIT) {
+        showToast('Можно скрыть не больше ' + HIDDEN_AUTHORS_LIMIT + ' авторов. Освободите место в Настройках', 'error');
+        return;
+      }
+      all[authorKeyOf(post)] = {
+        name: post.author || '',
+        until: chosen === 0 ? 0 : Date.now() + chosen * 86400000
+      };
+      saveHiddenAuthors(all);
+      closeNotInterestedModal();
+      const lbl = (NI_DURATIONS.find(d => d.days === chosen) || {}).label || '';
+      showToast(chosen === 0
+        ? `Посты ${name} скрыты из ленты навсегда`
+        : `Посты ${name} скрыты из ленты: ${lbl}`);
+      renderPhotosGrid();
+    };
+  };
+
+  // ---------- Окно со ссылкой после публикации «только по ссылке» ----------
+  window.openPostLinkModal = function (postId) {
+    const old = document.getElementById('plOverlay');
+    if (old) old.remove();
+    const link = getPostLink(postId);
+    const overlay = document.createElement('div');
+    overlay.id = 'plOverlay';
+    overlay.className = 'ni-overlay';
+    overlay.innerHTML = `
+      <div class="ni-box" role="dialog" aria-modal="true" aria-label="Пост опубликован">
+        <div class="ni-head">
+          <div class="ni-title">Пост опубликован</div>
+          <button type="button" class="ni-close" aria-label="Закрыть">✕</button>
+        </div>
+        <div class="ni-body">
+          <div class="ni-note"><b>Этот пост не виден в ленте.</b> Открыть его можно только по ссылке — отправьте её тем, кому хотите показать. Свою ссылку потом можно скопировать в профиле, в списке ваших постов.</div>
+          <div class="ni-label">Ссылка на пост</div>
+          <input type="text" class="pl-input" readonly value="${escapeHtml(link)}">
+          <button type="button" class="ni-submit pl-copy">Скопировать ссылку</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+    overlay.querySelector('.ni-close').onclick = close;
+    const input = overlay.querySelector('.pl-input');
+    input.addEventListener('focus', () => input.select());
+    overlay.querySelector('.pl-copy').onclick = () => {
+      copyTextToClipboard(link).then(() => showToast('Ссылка на пост скопирована в буфер обмена!'))
+        .catch(() => { input.focus(); input.select(); showToast('Выделите ссылку и скопируйте вручную', 'error'); });
+    };
+  };
+
+  // ---------- Настройки: скрытые авторы ----------
+  const HIDDEN_AUTHORS_LIMIT = 500;
+
+  function pruneHiddenAuthors() {
+    const all = loadHiddenAuthors();
+    let changed = false;
+    Object.keys(all).forEach(k => {
+      const e = all[k];
+      if (!e || (e.until !== 0 && !(e.until > Date.now()))) { delete all[k]; changed = true; }
+    });
+    if (changed) saveHiddenAuthors(all);
+    return all;
+  }
+
+  function hiddenUntilLabel(e) {
+    if (e.until === 0) return 'навсегда';
+    const d = new Date(e.until);
+    const left = Math.max(1, Math.ceil((e.until - Date.now()) / 86400000));
+    return 'до ' + d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }) + ' · осталось ' + left + ' дн.';
+  }
+
+  function renderHiddenAuthorsPane() {
+    const pane = document.getElementById('stPaneHidden');
+    if (!pane) return;
+    const all = pruneHiddenAuthors();
+    const keys = Object.keys(all);
+    const list = keys.length === 0
+      ? `<div class="st-empty"><b>Вы никого не скрывали</b><span>Нажмите «⋮» → «Не интересно» на посте в ленте.</span></div>`
+      : `<div class="st-list">${keys.map(k => {
+          const e = all[k];
+          const nm = e.name || 'автор';
+          return `<div class="st-row">
+            <div class="st-avatar">${escapeHtml(nm[0] || '?').toUpperCase()}</div>
+            <div class="st-row-info"><div class="st-row-name">@${escapeHtml(nm)}</div><div class="st-row-sub">${escapeHtml(hiddenUntilLabel(e))}</div></div>
+            <button type="button" class="st-unhide" data-key="${escapeHtml(k)}">Вернуть</button>
+          </div>`;
+        }).join('')}</div>`;
+    pane.innerHTML = `
+      <div class="st-pane-title">Скрытые авторы <span class="st-count">${keys.length} из ${HIDDEN_AUTHORS_LIMIT}</span></div>
+      <div class="st-pane-desc">Их посты не показываются в ленте. Статус снимается сам, когда истечёт выбранный срок; «навсегда» — только вручную. Авторы об этом не узнают.</div>
+      ${list}`;
+    pane.querySelectorAll('.st-unhide').forEach(btn => {
+      btn.onclick = () => {
+        const store = loadHiddenAuthors();
+        delete store[btn.getAttribute('data-key')];
+        saveHiddenAuthors(store);
+        renderHiddenAuthorsPane();
+        renderPhotosGrid();
+        showToast('Автор снова в ленте');
+      };
+    });
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && settingsModal.classList.contains('show')) closeSettingsModal(); });
+
   // Экранировать спецсимволы HTML, чтобы избежать XSS
-  function escapeHtml(text) { return String(text || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  // ИСПРАВЛЕНО (безопасность): раньше escapeHtml не экранировал кавычки ' и " —
+  // это позволяло вырваться из onclick="...('${...}')" через ник/текст и выполнить
+  // произвольный JS (stored XSS). Теперь экранируются все опасные для HTML/атрибутов символы.
+  function escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
 
   window.togglePicker = function(id) {
     document.querySelectorAll('.emoji-picker-popup').forEach(p => {
@@ -6237,4 +6936,115 @@ window.closeProfileSheet = function () {
   const overlay = document.getElementById('mpsOverlay');
   if (overlay) overlay.classList.remove('show');
 };
+
+// Клик по последней кнопке нижнего мобильного меню: гостю сразу открываем вход,
+// авторизованному — обычную шторку профиля (метка кнопки обновляется в updateDropdownUI)
+window.handleMbnProfileClick = function () {
+  if (auth.currentUser) {
+    toggleProfileSheet();
+  } else {
+    openLoginModal();
+  }
+};
 // ===================== /ШТОРКА ПРОФИЛЯ =====================
+
+
+// ===================== АУДИОПЛЕЕР ПОСТА (как в референсе) =====================
+(function () {
+  const ICON_PLAY  = '<svg class="ap-ico-play" viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>';
+  const ICON_PAUSE = '<svg class="ap-ico-pause" viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><rect x="6" y="4" width="4.5" height="16" rx="1"/><rect x="13.5" y="4" width="4.5" height="16" rx="1"/></svg>';
+  const ICON_VOL   = '<svg class="ap-ico-vol" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none"/></svg>';
+  const ICON_MUTE  = '<svg class="ap-ico-mute" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none"/></svg>';
+
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  window.buildAudioPlayerHTML = function (src, name) {
+    return `
+      <div class="reel-audio-frame">
+        <div class="ap">
+          <audio preload="metadata" src="${src}"></audio>
+          <div class="ap-top">
+            <button type="button" class="ap-play" aria-label="Воспроизвести / пауза">${ICON_PLAY}${ICON_PAUSE}</button>
+            <div class="ap-name" title="${esc(name)}">${esc(name)}</div>
+            <input type="range" class="ap-vol" min="0" max="1" step="0.01" value="0.5" style="--p:50%" aria-label="Громкость">
+            <button type="button" class="ap-mute" aria-label="Выключить звук">${ICON_VOL}${ICON_MUTE}</button>
+          </div>
+          <input type="range" class="ap-seek" min="0" max="1000" step="1" value="0" style="--p:0%" aria-label="Перемотка">
+        </div>
+      </div>`;
+  };
+
+  function fill(el) {
+    const min = parseFloat(el.min) || 0, max = parseFloat(el.max) || 1;
+    el.style.setProperty('--p', (((parseFloat(el.value) - min) / (max - min)) * 100) + '%');
+  }
+  function initAudio(a, ap) {
+    if (a.dataset.apInit) return;
+    a.dataset.apInit = '1';
+    a.volume = parseFloat(ap.querySelector('.ap-vol').value);
+  }
+  function syncTime(ap) {
+    const a = ap.querySelector('audio'), seek = ap.querySelector('.ap-seek');
+    seek.value = (a.duration && isFinite(a.duration)) ? (a.currentTime / a.duration) * 1000 : 0;
+    fill(seek);
+  }
+  function syncVolume(ap) {
+    const a = ap.querySelector('audio');
+    ap.classList.toggle('is-muted', a.muted || a.volume === 0);
+  }
+
+  document.addEventListener('click', function (e) {
+    const play = e.target.closest && e.target.closest('.ap-play');
+    if (play) {
+      e.stopPropagation();
+      const ap = play.closest('.ap'), a = ap.querySelector('audio');
+      initAudio(a, ap);
+      if (a.paused) {
+        document.querySelectorAll('.ap audio').forEach((o) => { if (o !== a) o.pause(); });
+        const p = a.play();
+        if (p && p.catch) p.catch(() => {});
+      } else {
+        a.pause();
+      }
+      return;
+    }
+    const mute = e.target.closest && e.target.closest('.ap-mute');
+    if (mute) {
+      e.stopPropagation();
+      const ap = mute.closest('.ap'), a = ap.querySelector('audio');
+      initAudio(a, ap);
+      if (a.volume === 0) { a.volume = 0.5; ap.querySelector('.ap-vol').value = 0.5; fill(ap.querySelector('.ap-vol')); }
+      a.muted = !a.muted;
+      syncVolume(ap);
+    }
+  });
+
+  document.addEventListener('input', function (e) {
+    const t = e.target;
+    if (!t.classList) return;
+    if (t.classList.contains('ap-seek')) {
+      const ap = t.closest('.ap'), a = ap.querySelector('audio');
+      if (a.duration && isFinite(a.duration)) a.currentTime = (t.value / 1000) * a.duration;
+      fill(t);
+    } else if (t.classList.contains('ap-vol')) {
+      const ap = t.closest('.ap'), a = ap.querySelector('audio');
+      initAudio(a, ap);
+      a.volume = parseFloat(t.value);
+      a.muted = false;
+      fill(t);
+      syncVolume(ap);
+    }
+  });
+
+  // Медиа-события не всплывают — слушаем в фазе перехвата
+  ['timeupdate', 'loadedmetadata', 'durationchange', 'play', 'pause', 'ended'].forEach(function (ev) {
+    document.addEventListener(ev, function (e) {
+      const a = e.target;
+      if (!a || a.tagName !== 'AUDIO') return;
+      const ap = a.closest('.ap');
+      if (!ap) return;
+      ap.classList.toggle('is-playing', !a.paused && !a.ended);
+      syncTime(ap);
+    }, true);
+  });
+})();

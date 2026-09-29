@@ -1235,15 +1235,20 @@
     line-height: 1.4;
   }
 
-  /* РИЛС-МОДАЛКА */
+  /* РИЛС-МОДАЛКА
+     Раньше карточка растягивалась на всю высоту/ширину экрана (right:0/bottom:0
+     без ограничений), поэтому на широких окнах медиа-колонка (flex:1 1 auto)
+     раздувалась до огромного размера. Теперь оверлей — просто затемнение на
+     весь экран, а сама карточка (.reel-card) отцентрована и ограничена по
+     max-width/max-height, как в примере-референсе. */
   .reels-modal-overlay {
     display: none;
     position: fixed;
-    top: calc(78px + env(safe-area-inset-top, 0px));
+    top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: #0c0d0f;
+    background: rgba(6, 7, 10, 0.92);
     z-index: 900;
     overflow: hidden;
   }
@@ -1251,6 +1256,8 @@
   .reels-modal-overlay.show {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
 
   .reels-close-btn {
@@ -1284,19 +1291,21 @@
     overflow: hidden;
     display: flex;
     flex-direction: row;
-    align-items: stretch;
+    align-items: center;
+    justify-content: center;
     box-sizing: border-box;
-    /* Отступы слева и справа увеличены и сделаны симметричными — картинка/видео
-      не должны подходить близко к краю экрана, чтобы не соприкасаться со
-      стрелками перелистывания постов (.reels-nav-group), которые находятся
-       у самого края. */
-    padding: 26px 96px 26px 96px;
+    /* Отступы нужны только чтобы карточка не соприкасалась со стрелками
+       перелистывания (.reels-nav-group) и с верхней/нижней кромкой экрана —
+       саму карточку они больше не растягивают, т.к. у неё есть max-width/height. */
+    padding: 110px 110px 40px;
     gap: 0;
   }
 
   .reel-card {
     width: 100%;
+    max-width: 1120px;
     height: 100%;
+    max-height: 680px;
     display: flex;
     flex-direction: row;
     align-items: stretch;
@@ -2306,7 +2315,15 @@
     display: flex;
     gap: 4px;
     border-bottom: 1px solid var(--card-border);
+    /* Вкладок теперь 5 (Посты/Скрытые/Сохранённые/Оценки/Комментарии) —
+       на узких экранах строка не влезает по ширине, поэтому скроллим её
+       горизонтально вместо переноса/сжатия. */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+
+  .np-profile-tabs::-webkit-scrollbar { display: none; }
 
   .np-profile-tab {
     background: transparent;
@@ -2318,6 +2335,8 @@
     font-weight: 600;
     font-family: 'Onest', sans-serif;
     position: relative;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .np-profile-tab.active {
@@ -4434,6 +4453,70 @@
     transform: scale(0.98);
   }
 
+  /* ---------- модалка "Требуется авторизация" (для гостей) ---------- */
+  .auth-required-modal {
+    max-width: 420px;
+    padding: 12px 28px 28px;
+  }
+
+  .auth-required-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 4px 4px 4px;
+  }
+
+  .auth-required-logo {
+    width: 160px;
+    max-width: 70%;
+    height: auto;
+    margin-bottom: 18px;
+  }
+
+  .auth-required-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+
+  .auth-required-desc {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--muted);
+    margin-bottom: 22px;
+  }
+
+  .auth-required-twitch-btn {
+    margin-bottom: 12px;
+  }
+
+  .auth-required-other-link {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: color 0.2s ease;
+  }
+
+  .auth-required-other-link:hover {
+    color: var(--text);
+  }
+
+  /* Telegram override для кнопки входа/регистрации */
+  .tg-login-btn {
+    background: #229ED9;
+  }
+  .tg-login-btn:hover {
+    background: #1a87be;
+  }
+
   .gb-input-row {
     display: flex;
     gap: 8px;
@@ -4814,18 +4897,36 @@
 
   @media (max-width: 900px) {
     body { padding-top: 88px; }
-    .site-header { padding: 0 12px; grid-template-columns: auto 1fr auto; }
-    .header-center-group { gap: 8px; }
+
+    /* Раньше на мобильных шапка оставалась той же CSS-grid раскладкой, что и на
+       ПК: у логотипа было жёстко задано grid-column:2, а поиск/кнопка полного
+       экрана авто-размещались в колонку шириной "auto" (по контенту) — то есть
+       поиск физически не мог растянуться на всю ширину, как задумано в
+       комментарии ниже, и вся строка могла тесниться/наезжать сама на себя.
+       На мобильных переключаемся на простой flex: логотип занимает свою
+       естественную ширину слева, а поиск получает весь остаток места справа. */
+    .site-header {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 12px;
+    }
+
+    .header-center-group { flex: 0 0 auto; gap: 8px; }
+    .site-logo { flex-shrink: 0; }
     .top-nav-menu { display: none; }
 
     /* На мобильных показываем только пиксельного котика без надписи */
     .site-logo-full { display: none; }
     .site-logo-mobile { display: block; }
 
-    /* Поиск на мобильных — простая растянутая плашка на всю ширину, без кнопки-лупы
-       и без цветных градиентов, в едином стиле с остальным сайтом. */
+    /* Поиск на мобильных — снова показан, растянутая плашка по центру шапки,
+       между логотипом слева и кнопкой полноэкранного режима справа. */
     .top-right-controls {
       flex: 1 1 auto;
+      min-width: 0;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -4898,7 +4999,7 @@
       height: 40px;
     }
 
-    .footer-grid { flex-direction: column; align-items: center; gap: 20px; }
+    .footer-grid { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 24px 32px; }
     .videos-layout-container { grid-template-columns: 1fr; }
     .video-sidebar { position: static; }
     .reel-card { padding: 16px; }
@@ -5833,6 +5934,13 @@
     transition: stroke 0.2s ease;
   }
 
+  .mbn-item span:last-child {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .mbn-item.active {
     background: none;
     color: var(--accent);
@@ -5843,21 +5951,25 @@
     width: 48px;
     height: 48px;
     border-radius: 14px;
-    background: linear-gradient(135deg, var(--accent), var(--accent-hover, #2563eb));
+    background: linear-gradient(135deg, #8bc53f, #5f8a22);
     color: #fff;
-    box-shadow: 0 4px 14px var(--accent-glow, rgba(59, 130, 246, 0.4));
-    margin: -18px 4px 0;
+    /* Кольцо толщиной 4px цвета фона страницы визуально "вырезает" кнопку
+       из полосы навигации снизу, но приподнимаем её совсем немного, чтобы
+       она оставалась внутри отведённой под бар области и не залезала на
+       контент выше. */
+    box-shadow: 0 4px 12px rgba(120, 157, 43, 0.4), 0 0 0 4px var(--bg);
+    margin: -10px 6px 0;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
 
   .mbn-item-plus svg {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
   }
 
   .mbn-item-plus:hover {
     transform: scale(1.1);
-    box-shadow: 0 0 15px var(--accent-glow), 0 4px 16px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 0 15px rgba(120, 157, 43, 0.55), 0 4px 16px rgba(0, 0, 0, 0.25);
   }
 
   .mbn-item-plus:active {
@@ -5929,8 +6041,11 @@
 
   .reel-card {
     flex-direction: column;
+    width: 100%;
+    max-width: 100%;
     height: auto;
     min-height: 100%;
+    max-height: none;
     border-radius: 0;
     box-shadow: none;
   }
@@ -5968,6 +6083,16 @@
 
   .reel-comment-input-box {
     flex-shrink: 0;
+  }
+
+  /* Раньше строка с кнопками (лайк/дизлайк + скачать + поделиться + пожаловаться
+     + удалить) была одной нерастягиваемой flex-строкой без переноса — на узких
+     экранах ей банально не хватало ширины, и последние кнопки (обычно "удалить")
+     вылезали за правый край карточки. Разрешаем перенос на новую строку. */
+  .reel-actions-bar,
+  .reel-action-group {
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
 
   .reels-close-btn {
@@ -7203,4 +7328,862 @@ button:not(.mbn-item):not(.top-nav-link):not(.np-profile-tab) {
   100% {
     transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg);
   }
+}
+
+  /* ===== Политика конфиденциальности: блок выбора по Метрике ===== */
+  .consent-status-box {
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    background: var(--input-bg);
+  }
+  .consent-status-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+  .consent-status-btns {
+    display: flex;
+    gap: 10px;
+  }
+  .consent-status-btns button {
+    flex: 1;
+    padding: 11px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--card-border);
+    background: var(--card);
+    color: var(--text);
+    font: 600 12.5px 'Onest', sans-serif;
+    transition: border-color 0.15s ease;
+  }
+  .consent-status-btns button:hover {
+    border-color: var(--accent);
+  }
+
+
+/* =====================================================================
+   СТРАНИЦА «СОЗДАТЬ ПОСТ» — как в референсе (размеры взяты со скриншота)
+   Цвета берутся из --accent, поэтому тема сайта сохраняется.
+   ===================================================================== */
+#newPostPage .newpost-stack {
+  position: relative;
+  max-width: 1350px;
+  margin: 24px auto 0;
+  padding-top: 31px;
+}
+#newPostPage .newpost-layer {
+  position: absolute;
+  height: 44px;
+  border-radius: 22px 22px 0 0;
+}
+#newPostPage .newpost-layer-back  { top: 0;    left: 51px; right: 51px; background: rgba(255,255,255,0.22); }
+#newPostPage .newpost-layer-front { top: 13px; left: 14px; right: 14px; background: rgba(255,255,255,0.13); border-radius: 26px 26px 0 0; }
+body.light-theme #newPostPage .newpost-layer-back  { background: rgba(0,0,0,0.16); }
+body.light-theme #newPostPage .newpost-layer-front { background: rgba(0,0,0,0.09); }
+
+#newPostPage .newpost-card {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  margin: 0;
+  padding: 27px;
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 30px;
+  box-shadow: none;
+}
+body.light-theme #newPostPage .newpost-card { border-color: rgba(0,0,0,0.12); }
+#newPostPage .newpost-card::before { content: none; }
+
+#newPostPage .newpost-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 54px;
+  align-items: stretch;
+}
+
+/* ---- зона загрузки ---- */
+#newPostPage .newpost-dropzone {
+  min-height: 675px;
+  padding: 32px 24px;
+  border: 1px dashed rgba(150,150,150,0.4);
+  border-radius: 20px;
+  background: var(--input-bg);
+  color: var(--accent);
+  gap: 0;
+}
+#newPostPage .newpost-dropzone:hover { background: var(--input-bg); border-color: var(--accent); }
+#newPostPage .newpost-dropzone.dropzone-dragover { background: rgba(255,255,255,0.04); transform: none; }
+#newPostPage .newpost-floppy { display: block; margin-bottom: 22px; }
+#newPostPage .newpost-dropzone-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--text);
+}
+#newPostPage .newpost-dropzone-hint {
+  font-size: 12px;
+  line-height: 27px;
+  margin: 0;
+  color: var(--muted);
+}
+#newPostPage .newpost-choose-btn {
+  margin-top: 18px;
+  height: 45px;
+  padding: 0 20px;
+  min-width: 128px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font: 700 15px 'Onest', sans-serif;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+#newPostPage .newpost-choose-btn:hover { background: var(--accent-hover); }
+#newPostPage .newpost-file-indicator { margin-top: 16px; font-size: 13px; word-break: break-all; max-width: 90%; }
+
+/* ---- правая колонка ---- */
+#newPostPage .newpost-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+#newPostPage .form-label-txt {
+  font-size: 13.5px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+  margin: 0 0 8px;
+  line-height: 16px;
+}
+#newPostPage .newpost-input {
+  height: 48px;
+  padding: 0 17px;
+  margin: 0;
+  border-radius: 14px;
+  font-size: 15px;
+}
+#newPostPage .newpost-textarea {
+  height: 201px;
+  padding: 14px 17px 46px;
+  margin: 0;
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+#newPostPage .newpost-input::placeholder,
+#newPostPage .newpost-textarea::placeholder { color: var(--muted); opacity: .75; }
+
+#newPostPage .newpost-access-row {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  flex-wrap: nowrap;
+}
+#newPostPage .newpost-access-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  font: 600 15px 'Onest', sans-serif;
+  color: var(--text);
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  cursor: pointer;
+  white-space: nowrap;
+}
+#newPostPage .newpost-access-btn:hover { border-color: var(--accent); color: var(--text); }
+#newPostPage .newpost-access-btn.selected {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* переключатель «Не для стрима» */
+#newPostPage .newpost-nsfw-toggle { display: flex; align-items: center; gap: 12px; margin-top: 20px; }
+#newPostPage .np-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(150,150,150,0.45);
+  cursor: pointer;
+  transition: background .2s ease;
+}
+#newPostPage .np-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #18181a;
+  transition: transform .2s ease, background .2s ease;
+}
+#newPostPage .np-switch.selected { background: var(--accent); }
+#newPostPage .np-switch.selected .np-switch-knob { transform: translateX(22px); background: #fff; }
+#newPostPage .np-switch-label { font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer; user-select: none; }
+
+/* кнопка публикации + подсказка внизу колонки */
+#newPostPage .newpost-submit-wrap { margin-top: auto; }
+#newPostPage .newpost-submit-btn {
+  display: block;
+  width: 100%;
+  height: 59px;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  background: var(--accent);
+  color: #fff;
+  font: 700 17px 'Onest', sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+#newPostPage .newpost-submit-btn:hover { background: var(--accent-hover); }
+#newPostPage .newpost-submit-btn.is-empty {
+  background: color-mix(in srgb, var(--accent) 45%, #2a2a2a);
+  color: rgba(255,255,255,0.55);
+}
+#newPostPage .newpost-rules-hint { text-align: center; font-size: 12.5px; color: var(--muted); margin-top: 14px; }
+#newPostPage .newpost-rules-hint a { color: var(--accent); text-decoration: underline; }
+
+@media (max-width: 800px) {
+  #newPostPage .newpost-stack { padding-top: 22px; }
+  #newPostPage .newpost-layer-back  { left: 28px; right: 28px; }
+  #newPostPage .newpost-layer-front { top: 9px; left: 10px; right: 10px; }
+  #newPostPage .newpost-card { padding: 16px; border-radius: 22px; }
+  #newPostPage .newpost-layout { grid-template-columns: 1fr; gap: 24px; }
+  #newPostPage .newpost-dropzone { min-height: 300px; }
+  #newPostPage .newpost-textarea { height: 160px; }
+  #newPostPage .newpost-submit-wrap { margin-top: 4px; }
+  #newPostPage .newpost-access-btn { font-size: 13.5px; padding: 0 8px; gap: 6px; }
+}
+
+
+/* =====================================================================
+   АУДИОПЛЕЕР В ПОСТЕ (как в референсе): 600×88, плей, имя файла,
+   ползунок громкости, кнопка звука и полоса перемотки
+   ===================================================================== */
+.reel-audio-frame {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: radial-gradient(circle at 50% 50%, #202020 0%, #151515 55%, #101010 100%);
+}
+.ap {
+  width: min(600px, 100%);
+  box-sizing: border-box;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 10px;
+  background: rgba(20,20,20,0.92);
+  color: #fff;
+  font-family: 'Onest', sans-serif;
+}
+.ap-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ap-play, .ap-mute {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: #fff;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.ap-play:hover, .ap-mute:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); }
+.ap-play { width: 36px; height: 36px; border-radius: 50%; }
+.ap-play .ap-ico-pause { display: none; }
+.ap.is-playing .ap-play .ap-ico-play { display: none; }
+.ap.is-playing .ap-play .ap-ico-pause { display: block; }
+.ap-play .ap-ico-play { margin-left: 2px; }
+.ap-mute { width: 38px; height: 36px; border-radius: 8px; color: rgba(255,255,255,0.55); }
+.ap-mute .ap-ico-mute { display: none; }
+.ap.is-muted .ap-mute .ap-ico-vol { display: none; }
+.ap.is-muted .ap-mute .ap-ico-mute { display: block; }
+.ap-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ap input[type="range"] {
+  --p: 0%;
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+  height: 8px;
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+  background: linear-gradient(to right, var(--accent) var(--p), rgba(255,255,255,0.18) var(--p));
+}
+.ap-seek { width: 100%; }
+.ap-vol { flex: 0 0 auto; width: 80px; }
+.ap input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+.ap input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+.ap-vol::-webkit-slider-thumb { width: 14px; height: 14px; }
+.ap-vol::-moz-range-thumb { width: 14px; height: 14px; }
+.ap input[type="range"]::-moz-range-track { background: transparent; }
+
+@media (max-width: 600px) {
+  .reel-audio-frame { padding: 12px; }
+  .ap-vol { width: 60px; }
+}
+
+
+/* =====================================================================
+   3D-папка на странице «Создать пост» (Uiverse.io by Nykolas94).
+   Открывается при наведении на всю зону загрузки и при перетаскивании файла.
+   ===================================================================== */
+.npx-folder {
+  --folder-back-1: #f7c14b;
+  --folder-back-2: #e9a52f;
+  --folder-front-1: #ffd970;
+  --folder-front-2: #fbc548;
+  --folder-edge: #d68f23;
+  --paper: #fdfdfb;
+  --paper-2: #f1f0ea;
+  --npx-radius: 0.875em;
+  --npx-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  position: relative;
+  display: block;
+  width: 14em;
+  font-size: 16px;
+  margin: 0 auto 26px;
+  pointer-events: none;
+}
+.npx-folder__shape {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  transition: transform 0.45s var(--npx-ease);
+}
+.npx-folder__back {
+  position: absolute;
+  inset: 14% 0 0 0;
+  background: linear-gradient(135deg, var(--folder-back-1), var(--folder-back-2));
+  border-radius: 0.25em var(--npx-radius) var(--npx-radius) var(--npx-radius);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.npx-folder__back::before {
+  content: "";
+  position: absolute;
+  top: -13%;
+  left: 0;
+  width: 46%;
+  height: 16%;
+  background: linear-gradient(135deg, var(--folder-back-1), var(--folder-back-2));
+  border-radius: 0.375em 0.375em 0 0;
+  clip-path: polygon(0 0, 82% 0, 100% 100%, 0 100%);
+}
+.npx-folder__papers {
+  position: absolute;
+  inset: 6% 8% 12% 8%;
+  z-index: 2;
+  display: block;
+}
+.npx-paper {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 86%;
+  height: 78%;
+  translate: -50% 0;
+  background: var(--paper);
+  border-radius: 0.375em;
+  box-shadow: 0 0.25em 0.875em rgba(60, 40, 10, 0.12);
+  transition: transform 0.45s var(--npx-ease), bottom 0.45s var(--npx-ease);
+  overflow: hidden;
+}
+.npx-paper::before,
+.npx-paper::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 24%;
+  height: 6%;
+  border-radius: 0.2em;
+  background: var(--paper-2);
+}
+.npx-paper::before { top: 22%; }
+.npx-paper::after { top: 40%; right: 40%; }
+.npx-paper--1 { width: 78%; height: 70%; background: #f6f4ee; }
+.npx-paper--2 { width: 82%; height: 74%; background: #fbfaf6; }
+.npx-paper--3 { width: 86%; }
+.npx-folder__front {
+  position: absolute;
+  inset: 38% 0 0 0;
+  z-index: 3;
+  background: linear-gradient(150deg, var(--folder-front-1), var(--folder-front-2));
+  border-radius: var(--npx-radius);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 -1px 0 var(--folder-edge),
+    0 0.875em 1.375em -0.75em rgba(120, 80, 10, 0.35);
+  transform-origin: bottom center;
+  transition: transform 0.45s var(--npx-ease);
+}
+.npx-folder__front::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--npx-radius);
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.35) 0%, transparent 45%);
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .newpost-dropzone:hover .npx-folder__shape { transform: translateY(-0.375em); }
+  .newpost-dropzone:hover .npx-folder__front { transform: rotateX(-32deg); }
+  .newpost-dropzone:hover .npx-paper { transform: translateY(-26%); }
+  .newpost-dropzone:hover .npx-paper--1 { transform: translate(-26%, -18%) rotate(-7deg); }
+  .newpost-dropzone:hover .npx-paper--2 { transform: translate(22%, -22%) rotate(6deg); }
+}
+.newpost-dropzone.dropzone-dragover .npx-folder__shape { transform: translateY(-0.375em); }
+.newpost-dropzone.dropzone-dragover .npx-folder__front { transform: rotateX(-32deg); }
+.newpost-dropzone.dropzone-dragover .npx-paper { transform: translateY(-26%); }
+.newpost-dropzone.dropzone-dragover .npx-paper--1 { transform: translate(-26%, -18%) rotate(-7deg); }
+.newpost-dropzone.dropzone-dragover .npx-paper--2 { transform: translate(22%, -22%) rotate(6deg); }
+@media (max-width: 800px) {
+  .npx-folder { font-size: 12px; margin-bottom: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .npx-folder__shape, .npx-folder__front, .npx-paper { transition: none; }
+}
+
+/* =====================================================================
+   Меню «⋮» на карточке поста + окно «Не интересно»
+   ===================================================================== */
+.photo-menu-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.photo-menu-btn:hover,
+.photo-menu-btn.active {
+  background: rgba(150, 150, 150, 0.18);
+  color: var(--text);
+}
+.photo-menu-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+.post-menu {
+  position: fixed;
+  z-index: 100000;
+  min-width: 240px;
+  max-width: calc(100vw - 16px);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  font-family: 'Onest', system-ui, sans-serif;
+  animation: postMenuIn 0.14s ease;
+}
+@keyframes postMenuIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.post-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: 600 13.5px/1.25 'Onest', system-ui, sans-serif;
+  text-align: left;
+}
+.post-menu-item:hover { background: rgba(150, 150, 150, 0.14); }
+.post-menu-item svg { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; }
+.post-menu-item small { display: block; margin-top: 2px; font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.post-menu-item.danger { color: #ef4444; }
+.post-menu-sep { height: 1px; margin: 5px 6px; background: var(--card-border); }
+
+.ni-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  animation: postMenuIn 0.18s ease;
+}
+.ni-box {
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  font-family: 'Onest', system-ui, sans-serif;
+  color: var(--text);
+}
+.ni-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--card-border);
+}
+.ni-title { font-size: 17px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; }
+.ni-close {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(150, 150, 150, 0.12);
+  color: var(--text);
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+}
+.ni-close:hover { background: rgba(150, 150, 150, 0.25); }
+.ni-body { padding: 20px 22px 22px; }
+.ni-note {
+  border-left: 3px solid var(--accent);
+  padding: 2px 0 2px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.ni-note b { color: var(--text); font-weight: 700; }
+.ni-label {
+  margin: 22px 0 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ni-options { display: flex; flex-direction: column; gap: 8px; }
+.ni-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--input-bg);
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ni-opt:hover { border-color: rgba(150, 150, 150, 0.4); }
+.ni-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.ni-radio {
+  width: 20px; height: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+  position: relative;
+  transition: border-color 0.15s ease;
+}
+.ni-radio::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: scale(0);
+  transition: transform 0.15s ease;
+}
+.ni-opt.selected { border-color: var(--accent); background: var(--accent-dim); }
+.ni-opt.selected .ni-radio { border-color: var(--accent); }
+.ni-opt.selected .ni-radio::after { transform: scale(1); }
+.ni-submit {
+  width: 100%;
+  margin-top: 20px;
+  padding: 16px;
+  border: none;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font: 800 15px 'Onest', system-ui, sans-serif;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.ni-submit:hover { background: var(--accent-hover); }
+
+/* =====================================================================
+   МОБИЛЬНЫЙ ПОИСК — фикс.
+   1) сетка шапки: логотип и поиск попадали не в те колонки (из-за
+      grid-column от десктопа), поэтому поиск сжимался/уезжал;
+   2) выпадашка результатов была привязана к right:52px от узкого блока и
+      вылезала за левый край — теперь растягивается по ширине шапки;
+   3) font-size 16px, чтобы iOS не зумил страницу при фокусе на поле.
+   ===================================================================== */
+@media (max-width: 900px) {
+  /* grid-template-columns/grid-column из старой раскладки шапки (до перехода
+     на flex) больше не нужны и только мешали — шапка теперь flex (см. правило
+     выше), а .top-right-controls уже растягивается через flex:1 1 auto. */
+  .header-search { min-width: 0; }
+  .header-search .search-wrapper { min-width: 0; }
+  .header-search .search-input { font-size: 16px; min-width: 0; }
+  .smart-search-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: min(420px, 60vh);
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+
+/* ===== Прикреплённые файлы в «Создать пост»: список с кнопкой ✕ ===== */
+.newpost-file-indicator {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+}
+.np-file-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(100%, 360px);
+  padding: 6px 6px 6px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+.np-file-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np-file-chip-x {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(150, 150, 150, 0.2);
+  color: var(--text);
+  font-size: 12px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.np-file-chip-x:hover { background: rgba(239, 68, 68, 0.85); color: #fff; }
+.np-file-clear-all {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: 600 12.5px 'Onest', sans-serif;
+  text-decoration: underline;
+  padding: 2px 6px;
+}
+.np-file-clear-all:hover { color: #ef4444; }
+
+.newpost-access-hint {
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ===== Профиль: пометка и кнопка копирования ссылки ===== */
+.np-link-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.np-copy-link-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--input-bg);
+  color: var(--text);
+  font: 600 12px 'Onest', sans-serif;
+}
+.np-copy-link-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ===== Окно со ссылкой на пост ===== */
+.pl-input {
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--input-bg);
+  color: var(--text);
+  font: 500 13px 'Onest', sans-serif;
+  outline: none;
+}
+.pl-input:focus { border-color: var(--accent); }
+
+/* ===== Окно «Настройки» ===== */
+.st-box {
+  display: flex;
+  width: 100%;
+  max-width: 880px;
+  min-height: 320px;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  font-family: 'Onest', system-ui, sans-serif;
+  color: var(--text);
+}
+.st-side {
+  width: 240px;
+  flex-shrink: 0;
+  padding: 26px 16px;
+  border-right: 1px solid var(--card-border);
+}
+.st-side-title { padding: 0 12px 18px; font-size: 22px; font-weight: 800; }
+.st-side-item {
+  display: block;
+  width: 100%;
+  padding: 13px 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  font: 700 14px 'Onest', sans-serif;
+  text-align: left;
+}
+.st-side-item.active { background: rgba(150, 150, 150, 0.16); color: var(--text); }
+.st-main { position: relative; flex: 1; min-width: 0; padding: 26px 28px; overflow-y: auto; }
+.st-close { position: absolute; top: 18px; right: 18px; width: 40px; height: 40px; }
+.st-pane-title { padding-right: 52px; font-size: 19px; font-weight: 800; }
+.st-count { margin-left: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: var(--muted); text-transform: uppercase; }
+.st-pane-desc { margin: 10px 0 20px; max-width: 560px; font-size: 13px; line-height: 1.6; color: var(--muted); }
+.st-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 34px 16px;
+  border: 1px dashed rgba(150, 150, 150, 0.4);
+  border-radius: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.st-empty b { font-size: 14px; color: var(--text); }
+.st-list { display: flex; flex-direction: column; gap: 8px; }
+.st-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  background: var(--input-bg);
+}
+.st-avatar {
+  width: 36px; height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.st-row-info { flex: 1; min-width: 0; }
+.st-row-name { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-row-sub { margin-top: 2px; font-size: 12px; color: var(--muted); }
+.st-unhide {
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text);
+  font: 700 12.5px 'Onest', sans-serif;
+}
+.st-unhide:hover { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 700px) {
+  .st-box { max-width: 480px; flex-direction: column; }
+  .st-side {
+    display: flex;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 14px 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--card-border);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .st-side-title { display: none; }
+  .st-side-item { width: auto; flex-shrink: 0; white-space: nowrap; padding: 9px 14px; }
+  .st-main { padding: 22px 16px; }
 }

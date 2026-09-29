@@ -3,6 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!--
+  Content-Security-Policy: сужает список источников, откуда браузеру разрешено
+  грузить скрипты/стили/картинки/соединения. Даже если куда-то на сайт попадёт
+  чужой HTML/текст (XSS), браузер не даст выполнить script с постороннего домена
+  или увести данные на чужой сервер через fetch/XHR.
+  ВАЖНО: 'unsafe-inline' в script-src здесь оставлен вынужденно — сайт держится
+  на инлайн-обработчиках onclick="..." по всей разметке, и без 'unsafe-inline'
+  они просто перестанут работать. Это ослабляет защиту от XSS (инлайн-код всё
+  ещё выполнится), но полностью убирает риск подгрузки/исполнения СТОРОННЕГО
+  вредоносного скрипта с чужого домена — а именно так обычно воруют аккаунты.
+  Проверьте сайт целиком после вставки (вход, регистрация, отправка постов,
+  видео, Telegram-виджет) — CSP может незаметно что-то сломать.
+-->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' https://telegram.org https://www.gstatic.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src https://fonts.gstatic.com;
+  img-src 'self' data: https:;
+  media-src 'self' data: https:;
+  connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://telegram.org https://oauth.telegram.org;
+  frame-src https://oauth.telegram.org;
+  object-src 'none';
+  base-uri 'self';
+">
 <title>Nexora</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -80,7 +105,7 @@
 
   <button type="button" class="mbn-item" id="mbnVideos" onclick="switchTab('videos')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-    <span>Видосы</span>
+    <span>Видео</span>
   </button>
 
   <button type="button" class="mbn-item mbn-item-plus" id="mbnNewPost" onclick="switchTab('newpost')" title="Создать пост">
@@ -89,13 +114,13 @@
 
   <button type="button" class="mbn-item active" id="mbnGuestbook" onclick="switchTab('main')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-    <span>Гостевая</span>
+    <span>Гостевая книга</span>
   </button>
 
-  <button type="button" class="mbn-item" id="mbnSettings" onclick="toggleProfileSheet()">
+  <button type="button" class="mbn-item" id="mbnSettings" onclick="handleMbnProfileClick()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     <span class="mbn-notif-badge" id="mbnNotifBadge" style="display:none;">0</span>
-    <span>Профиль</span>
+    <span id="mbnProfileLabel">Войти</span>
   </button>
 
   <button type="button" class="mbn-item" id="mbnGames" onclick="switchTab('games')">
@@ -251,6 +276,10 @@
 
         <div class="dropdown-divider"></div>
 
+        <a href="#" class="dropdown-item" onclick="event.preventDefault(); openSettingsModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Настройки
+        </a>
         <a href="#" class="dropdown-item" onclick="event.preventDefault(); openSupportModal()">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           Поддержка
@@ -522,74 +551,73 @@
   </div>
 </div>
 
-<div id="accountSettingsModal" class="modal-overlay">
-  <div class="support-modal" style="max-width: 600px;">
-    <div class="support-modal-header">
-      <div class="support-modal-title">Настройки аккаунта</div>
-      <button class="support-close-btn" onclick="closeAccountSettingsModal()">✕</button>
+<div id="settingsModal" class="modal-overlay">
+  <div class="st-box" role="dialog" aria-modal="true" aria-label="Настройки">
+    <div class="st-side">
+      <div class="st-side-title">Настройки</div>
+      <button type="button" class="st-side-item active" id="stTabPassword" onclick="switchSettingsTab('password')">Пароль</button>
+      <button type="button" class="st-side-item" id="stTabLogins" onclick="switchSettingsTab('logins')">Входы</button>
+      <button type="button" class="st-side-item" id="stTabNotifs" onclick="switchSettingsTab('notifs')">Уведомления</button>
+      <button type="button" class="st-side-item" id="stTabBlacklist" onclick="switchSettingsTab('blacklist')">Чёрный список</button>
+      <button type="button" class="st-side-item" id="stTabHidden" onclick="switchSettingsTab('hidden')">Скрытые авторы</button>
     </div>
 
-    <div class="ep-tabs-row" style="margin-bottom: 18px;">
-      <button type="button" class="ep-tab active" id="asTabActivity" onclick="switchAccountSettingsTab('activity')">Активность</button>
-      <button type="button" class="ep-tab" id="asTabPassword" onclick="switchAccountSettingsTab('password')">Пароль</button>
-      <button type="button" class="ep-tab" id="asTabLogins" onclick="switchAccountSettingsTab('logins')">Входы</button>
-      <button type="button" class="ep-tab" id="asTabNotifs" onclick="switchAccountSettingsTab('notifs')">Уведомления</button>
-      <button type="button" class="ep-tab" id="asTabBlacklist" onclick="switchAccountSettingsTab('blacklist')">Чёрный список</button>
-    </div>
+    <div class="st-main">
+      <button type="button" class="ni-close st-close" aria-label="Закрыть" onclick="closeSettingsModal()">✕</button>
 
-    <div id="asPaneActivity">
-      <div class="support-info-box">Список ваших последних постов в ленте и сообщений в гостевой книге.</div>
-      <div id="activityHistoryList" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
-        <div style="color: var(--muted); text-align: center; padding: 20px;">Загрузка...</div>
+      <div id="stPanePassword">
+        <div class="st-pane-title">Пароль</div>
+        <div class="support-info-box">Для безопасности аккаунта введите ваш текущий и новый пароль.</div>
+        <label class="form-label-txt">Текущий пароль</label>
+        <input type="password" id="currentPasswordInput" class="modal-input" placeholder="Введите текущий пароль..." />
+        <label class="form-label-txt">Новый пароль</label>
+        <input type="password" id="newPasswordInput" class="modal-input" placeholder="Минимум 6 символов..." />
+        <button class="gb-send-btn" style="width: 100%; padding: 12px; margin-top: 8px;" onclick="updatePasswordUser()">Обновить пароль</button>
       </div>
-    </div>
 
-    <div id="asPanePassword" style="display: none;">
-      <div class="support-info-box">Для безопасности аккаунта введите ваш текущий и новый пароль.</div>
-      <label class="form-label-txt">Текущий пароль</label>
-      <input type="password" id="currentPasswordInput" class="modal-input" placeholder="Введите текущий пароль..." />
-      <label class="form-label-txt">Новый пароль</label>
-      <input type="password" id="newPasswordInput" class="modal-input" placeholder="Минимум 6 символов..." />
-      <button class="gb-send-btn" style="width: 100%; padding: 12px; margin-top: 8px;" onclick="updatePasswordUser()">Обновить пароль</button>
-    </div>
-
-    <div id="asPaneLogins" style="display: none;">
-      <div class="support-info-box">Здесь отображается история успешных авторизаций и устройств, с которых производился вход в ваш аккаунт.</div>
-      <div id="loginLogsContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
-        <div style="color: var(--muted); text-align: center; padding: 20px;">Загрузка логов...</div>
-      </div>
-    </div>
-
-    <div id="asPaneNotifs" style="display: none;">
-      <div class="support-info-box">Настройки синхронизируются с вашим аккаунтом и применяются на всех устройствах.</div>
-      <div class="settings-toggle-row">
-        <div class="settings-toggle-info">
-          <div class="settings-toggle-title">Уведомления о лайках</div>
-          <div class="settings-toggle-desc">Получать уведомления, когда кто-то оценивает ваши посты</div>
+      <div id="stPaneLogins" style="display: none;">
+        <div class="st-pane-title">Входы</div>
+        <div class="support-info-box">Здесь отображается история успешных авторизаций и устройств, с которых производился вход в ваш аккаунт.</div>
+        <div id="loginLogsContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+          <div style="color: var(--muted); text-align: center; padding: 20px;">Загрузка логов...</div>
         </div>
-        <button type="button" class="switch-toggle" id="notifSettingLikeToggle" onclick="toggleNotifSetting('likes')"><span class="switch-toggle-knob"></span></button>
       </div>
-      <div class="settings-toggle-row">
-        <div class="settings-toggle-info">
-          <div class="settings-toggle-title">Уведомления о комментариях</div>
-          <div class="settings-toggle-desc">Получать уведомления о новых комментариях и ответах</div>
-        </div>
-        <button type="button" class="switch-toggle" id="notifSettingCommentToggle" onclick="toggleNotifSetting('comments')"><span class="switch-toggle-knob"></span></button>
-      </div>
-      <div class="settings-toggle-row">
-        <div class="settings-toggle-info">
-          <div class="settings-toggle-title">Уведомления о подписчиках</div>
-          <div class="settings-toggle-desc">Получать уведомления о новых подписчиках</div>
-        </div>
-        <button type="button" class="switch-toggle" id="notifSettingSubscribeToggle" onclick="toggleNotifSetting('subscribes')"><span class="switch-toggle-knob"></span></button>
-      </div>
-    </div>
 
-    <div id="asPaneBlacklist" style="display: none;">
-      <div class="support-info-box">Пользователи, которых вы заблокировали. Их посты и сообщения скрыты из вашей ленты. Разблокировать можно в любой момент.</div>
-      <div id="blacklistContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
-        <div style="color: var(--muted); text-align: center; padding: 20px;">Список пуст</div>
+      <div id="stPaneNotifs" style="display: none;">
+        <div class="st-pane-title">Уведомления</div>
+        <div class="support-info-box">Настройки синхронизируются с вашим аккаунтом и применяются на всех устройствах.</div>
+        <div class="settings-toggle-row">
+          <div class="settings-toggle-info">
+            <div class="settings-toggle-title">Уведомления о лайках</div>
+            <div class="settings-toggle-desc">Получать уведомления, когда кто-то оценивает ваши посты</div>
+          </div>
+          <button type="button" class="switch-toggle" id="notifSettingLikeToggle" onclick="toggleNotifSetting('likes')"><span class="switch-toggle-knob"></span></button>
+        </div>
+        <div class="settings-toggle-row">
+          <div class="settings-toggle-info">
+            <div class="settings-toggle-title">Уведомления о комментариях</div>
+            <div class="settings-toggle-desc">Получать уведомления о новых комментариях и ответах</div>
+          </div>
+          <button type="button" class="switch-toggle" id="notifSettingCommentToggle" onclick="toggleNotifSetting('comments')"><span class="switch-toggle-knob"></span></button>
+        </div>
+        <div class="settings-toggle-row">
+          <div class="settings-toggle-info">
+            <div class="settings-toggle-title">Уведомления о подписчиках</div>
+            <div class="settings-toggle-desc">Получать уведомления о новых подписчиках</div>
+          </div>
+          <button type="button" class="switch-toggle" id="notifSettingSubscribeToggle" onclick="toggleNotifSetting('subscribes')"><span class="switch-toggle-knob"></span></button>
+        </div>
       </div>
+
+      <div id="stPaneBlacklist" style="display: none;">
+        <div class="st-pane-title">Чёрный список</div>
+        <div class="support-info-box">Пользователи, которых вы заблокировали. Их посты и сообщения скрыты из вашей ленты. Разблокировать можно в любой момент.</div>
+        <div id="blacklistContainer" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto;">
+          <div style="color: var(--muted); text-align: center; padding: 20px;">Список пуст</div>
+        </div>
+      </div>
+
+      <div id="stPaneHidden" style="display: none;"></div>
     </div>
   </div>
 </div>
@@ -607,10 +635,6 @@
     <button class="gb-send-btn" style="width: 100%; padding: 12px; margin-top: 8px;" onclick="loginUser()">Войти</button>
     <div class="auth-or-divider">или</div>
     <div class="tg-auth-wrap" id="tgAuthWrapLogin"></div>
-    <button type="button" class="twitch-auth-btn" onclick="loginWithTwitch()">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4.5 2 3 5.5v14h5V22h3l3-2.5h4L23 15V2H4.5zM21 14l-3 3h-4l-3 2.5V17H6V4h15v10z"/><path d="M15.5 7h2v5h-2zm-5 0h2v5h-2z"/></svg>
-      Войти через Twitch
-    </button>
     <div style="text-align: center; margin-top: 16px; font-size: 13px; color: var(--muted);">
       Нет аккаунта? <a href="#" onclick="event.preventDefault(); closeLoginModal(); openRegisterModal();" style="color: var(--accent); text-decoration: none; font-weight: 600;">Зарегистрироваться</a>
     </div>
@@ -629,15 +653,31 @@
     <input type="email" id="regEmail" class="modal-input" placeholder="name@example.com" />
     <label class="form-label-txt">Пароль</label>
     <input type="password" id="regPassword" class="modal-input" placeholder="Минимум 6 символов..." />
+    <!-- Honeypot-поле для антибот-проверки: невидимо для людей (off-screen), но обычные боты-заполнялки его находят и заполняют -->
+    <input type="text" id="regHoneypot" name="website" autocomplete="off" tabindex="-1" style="position:absolute; left:-9999px; width:1px; height:1px; opacity:0;" />
     <button class="gb-send-btn" style="width: 100%; padding: 12px; margin-top: 8px;" onclick="registerUser()">Создать аккаунт</button>
     <div class="auth-or-divider">или</div>
     <div class="tg-auth-wrap" id="tgAuthWrapRegister"></div>
-    <button type="button" class="twitch-auth-btn" onclick="loginWithTwitch()">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4.5 2 3 5.5v14h5V22h3l3-2.5h4L23 15V2H4.5zM21 14l-3 3h-4l-3 2.5V17H6V4h15v10z"/><path d="M15.5 7h2v5h-2zm-5 0h2v5h-2z"/></svg>
-      Войти через Twitch
-    </button>
     <div style="text-align: center; margin-top: 16px; font-size: 13px; color: var(--muted);">
       Уже есть аккаунт? <a href="#" onclick="event.preventDefault(); closeRegisterModal(); openLoginModal();" style="color: var(--accent); text-decoration: none; font-weight: 600;">Войти</a>
+    </div>
+  </div>
+</div>
+
+<div id="authRequiredModal" class="modal-overlay">
+  <div class="support-modal auth-required-modal">
+    <div class="support-modal-header" style="justify-content: flex-end; margin-bottom: 0;">
+      <button class="support-close-btn" onclick="closeAuthRequiredModal()">✕</button>
+    </div>
+    <div class="auth-required-body">
+      <img class="auth-required-logo" src="characters/nexora-logo.png" alt="Logo">
+      <div class="auth-required-title" id="authRequiredTitle">Загрузка файлов</div>
+      <div class="auth-required-desc" id="authRequiredDesc">Для загрузки файлов и публикации постов необходимо авторизоваться!</div>
+      <button type="button" class="twitch-auth-btn auth-required-twitch-btn" onclick="closeAuthRequiredModal(); loginWithTwitch();">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11.6 0 6.4 5.2v13.6h4.6V22l3.5-3.2h3.5L23.6 13V0H11.6zm10 12-3 3h-3.5l-3 3v-3H8.2V1.7h13.4V12z"/><path d="M18.3 4.4h-1.7v5.2h1.7V4.4zM13.7 4.4H12v5.2h1.7V4.4z"/></svg>
+        Войти через Twitch
+      </button>
+      <button type="button" class="auth-required-other-link" onclick="closeAuthRequiredModal(); openLoginModal();">Другой способ входа</button>
     </div>
   </div>
 </div>
@@ -723,35 +763,141 @@
   </div>
 </div>
 
+<div id="privacyModal" class="modal-overlay">
+  <div class="rules-modal">
+    <div class="support-modal-header">
+      <div class="support-modal-title" style="font-size: 14.5px; letter-spacing: 0.3px;">Политика конфиденциальности</div>
+      <button class="support-close-btn" onclick="closePrivacyModal()">✕</button>
+    </div>
+    <div class="rules-meta" style="margin-bottom: 6px;">Обновлено: 23 сентября 2026 года</div>
+    <div class="rules-meta" style="margin-bottom: 16px;">Вопросы и отзыв согласия: <a href="https://t.me/w0kky" target="_blank" rel="noopener" style="color: inherit; text-decoration: none;">@w0kky</a></div>
+
+    <p class="rules-intro">Здесь написано, какие данные собирает Nexora, зачем и что с ними происходит. Оператор данных — администрация сайта Nexora.</p>
+
+    <h4 class="rules-sec-title">1. Что мы собираем</h4>
+    <ul class="rules-list">
+      <li>При регистрации по e-mail: адрес почты, имя пользователя и пароль. Пароль хранит сервис Firebase Authentication в защищённом виде, администрация его не видит.</li>
+      <li>При входе через Twitch: данные профиля, которые Twitch передаёт при входе (например, имя, аватар и e-mail).</li>
+      <li>При открытии сайта внутри Telegram: ID, имя, ник и фото вашего профиля Telegram.</li>
+      <li>Необязательные поля профиля, если вы их заполните: аватар, описание, теги, телефон, дата рождения.</li>
+      <li>История входов: время и данные об устройстве (user-agent). Её видно вам в настройках профиля.</li>
+      <li>То, что вы публикуете сами: посты и файлы, комментарии, сообщения, реакции и голоса, жалобы, заявки на донат или подписку (имя, сумма).</li>
+      <li>Платёжные данные мы не получаем и не храним: оплата проходит на стороне DonationAlerts.</li>
+      <li>Собственных журналов с IP-адресами сайт не ведёт. Но IP неизбежно видят сервисы, через которые он работает (см. раздел 4).</li>
+    </ul>
+
+    <h4 class="rules-sec-title">2. Зачем</h4>
+    <ul class="rules-list">
+      <li>Чтобы сайт работал: вход, публикации, профиль, уведомления, личные сообщения.</li>
+      <li>Для безопасности аккаунта: история входов.</li>
+      <li>Для модерации жалоб и нарушений правил, для проверки донатов и подписок.</li>
+      <li>Для статистики посещений через Яндекс Метрику, только если вы согласились.</li>
+    </ul>
+
+    <h4 class="rules-sec-title">3. Куки и хранилище браузера</h4>
+    <ul class="rules-list">
+      <li>Вход в аккаунт. Firebase Authentication хранит данные сессии в памяти браузера, чтобы вы оставались в аккаунте. Без этого вход не работает, поэтому согласие на это не спрашивается.</li>
+      <li>Настройки в браузере (localStorage): тема оформления, чёрный список, черновики, ваши голоса, прочитанные уведомления, скрытые подсказки, прогресс в мини-играх и ваш выбор по кукам. Хранятся только у вас в браузере, на сервер не уходят.</li>
+      <li>Яндекс Метрика (куки _ym_*). Включается только после кнопки «Разрешить». Считает посещения, просмотры страниц, клики и переходы по ссылкам. Запись движений мыши и прокрутки (Вебвизор) не включена. Пароли и содержимое сообщений в Метрику не передаются.</li>
+    </ul>
+    <div class="consent-status-box">
+      <div id="privMetrikaStatus" class="consent-status-text">Метрика: выбор ещё не сделан.</div>
+      <div class="consent-status-btns">
+        <button type="button" onclick="setCookieConsent(true)">Разрешить Метрику</button>
+        <button type="button" onclick="setCookieConsent(false)">Отказаться</button>
+      </div>
+    </div>
+
+    <h4 class="rules-sec-title">4. Кому передаются данные</h4>
+    <ul class="rules-list">
+      <li>Google (Firebase): хранение аккаунтов и данных сайта, вход. Шрифты Google загружаются с их серверов, поэтому они видят ваш IP.</li>
+      <li>GitHub Pages: хостинг сайта, видит IP при загрузке страниц.</li>
+      <li>Twitch: вход через аккаунт Twitch.</li>
+      <li>Telegram: вход и работа сайта внутри Telegram.</li>
+      <li>YouTube и Unsplash: превью, плееры видео и картинки грузятся с их серверов, поэтому они видят ваш IP.</li>
+      <li>DonationAlerts: только если вы сами переходите по ссылке на оплату.</li>
+      <li>ООО «Яндекс» (Россия): Метрика, только с вашего согласия.</li>
+    </ul>
+    <p class="rules-intro" style="margin-top: 10px;">Мы ничего не продаём и не передаём данные для рекламы.</p>
+
+    <h4 class="rules-sec-title">5. Сколько храним</h4>
+    <ul class="rules-list">
+      <li>Данные аккаунта и история входов: пока существует аккаунт.</li>
+      <li>Публикации, комментарии, сообщения: пока вы или администрация их не удалите.</li>
+      <li>Данные Метрики хранит Яндекс по своим правилам.</li>
+    </ul>
+
+    <h4 class="rules-sec-title">6. Ваши права</h4>
+    <ul class="rules-list">
+      <li>Вы можете узнать, какие данные о вас есть, попросить исправить или удалить их и в любой момент отозвать согласие на Метрику.</li>
+      <li>Согласие на Метрику отзывается кнопкой «Отказаться» выше или ссылкой «Настройки куки» внизу сайта. Если не соглашаться, сайт работает так же, просто без Метрики.</li>
+      <li>Остальные вопросы: напишите в Telegram @w0kky из аккаунта, о котором идёт речь.</li>
+    </ul>
+
+    <button class="gb-send-btn" style="width: 100%; padding: 14px; margin-top: 15px; font-size: 13px; text-align: center;" onclick="closePrivacyModal()">Закрыть</button>
+  </div>
+</div>
+
 <div id="rulesModal" class="modal-overlay">
   <div class="rules-modal">
     <div class="support-modal-header">
       <div class="support-modal-title" style="font-size: 14.5px; letter-spacing: 0.3px;">Условия использования и правила платформы</div>
       <button class="support-close-btn" onclick="closeRulesModal()">✕</button>
     </div>
-    <div class="rules-meta" style="margin-bottom: 6px;">Обновлено: 9 февраля 2026 года</div>
-    <div class="rules-meta" style="margin-bottom: 16px;">Контакт: <a href="https://t.me/Discoragen" target="_blank" style="color: inherit; text-decoration: none;">@Discoragen</a></div>
-    
-    <p class="rules-intro">Сайт является независимой некоммерческой платформой для обмена медиаконтентом и общения пользователей.</p>
-    
-    <h4 class="rules-sec-title">1. Общие положения</h4>
+    <div class="rules-meta" style="margin-bottom: 6px;">Обновлено: 23 сентября 2026 года</div>
+    <div class="rules-meta" style="margin-bottom: 16px;">Контакт: <a href="https://t.me/w0kky" target="_blank" rel="noopener" style="color: inherit; text-decoration: none;">@w0kky</a></div>
+
+    <p class="rules-intro">Сайт является некоммерческой платформой, где пользователи публикуют изображения, видео, аудио и другой контент. Регистрируясь, загружая файлы или просто пользуясь сайтом, вы соглашаетесь с этими правилами.</p>
+
+    <h4 class="rules-sec-title">1. Общие условия</h4>
     <ul class="rules-list">
-      <li>1.1. Используя данный сайт, загружая медиафайлы или регистрируя аккаунт, вы подтверждаете свое полное согласие с настоящими правилами.</li>
-      <li>1.2. Администрация оставляет за собой право в любое время изменять, дополнять или удалять пункты правил без предварительного уведомления пользователей.</li>
+      <li>1.1. Весь контент, который вы публикуете, вы создаёте сами или используете на законных основаниях. Полную ответственность за него несёте вы.</li>
+      <li>1.2. Администрация не обязана проверять материалы заранее, но может удалять их и ограничивать доступ к аккаунтам при нарушении правил.</li>
+      <li>1.3. Мы можем в любой момент изменить или удалить ваш контент, заблокировать аккаунт или ограничить доступ к сайту без уведомления и объяснения причин, если правила нарушены.</li>
+      <li>1.4. Администрация вправе менять правила в любое время. Актуальная версия всегда доступна по ссылке «Правила сайта» внизу страницы, дата обновления указана выше.</li>
+      <li>1.5. Один человек — один аккаунт. Нельзя выдавать себя за другого пользователя, администрацию или модераторов.</li>
     </ul>
 
-    <h4 class="rules-sec-title">2. Правила размещения контента</h4>
+    <h4 class="rules-sec-title">2. Запрещённый контент</h4>
+    <p class="rules-intro">На сайте запрещено публиковать и распространять:</p>
     <ul class="rules-list">
-      <li>2.1. Весь контент и видео, которые вы загружаете и публикуете, создаются вами или используются на законных основаниях. Всю ответственность за размещенные материалы несет исключительно пользователь.</li>
-      <li>2.2. Запрещена публикация материалов, нарушающих авторские права третьих лиц, содержащих вредоносное ПО, вирусы или эксплойты.</li>
-      <li>2.3. Запрещено распространение спама, навязчивой рекламы, фишинговых ссылок, а также вредоносного или дестабилизирующего скриптового кода.</li>
-      <li>2.4. Запрещены материалы 18+, пропаганда насилия, жестокости, употребления запрещенных веществ и любые формы экстремизма или дискриминации.</li>
+      <li>2.1. Незаконные материалы любого характера.</li>
+      <li>2.2. Любой контент 18+: эротику, порнографию, откровенную обнажённость и сексуальный контент. Он запрещён полностью, независимо от пометок, блюра или отметки «Не для стрима».</li>
+      <li>2.3. Оскорбления, угрозы, травлю, дискриминацию и разжигание ненависти. Пропаганду насилия, жестокости, экстремизма и употребления запрещённых веществ.</li>
+      <li>2.4. Контент, нарушающий правила и политику платформ, для которых он может использоваться (Twitch, YouTube и аналогичных сервисов).</li>
+      <li>2.5. Материалы, нарушающие авторские и смежные права.</li>
+      <li>2.6. Вредоносные файлы, ссылки, вирусы, эксплойты и любое ПО, способное нанести вред.</li>
+      <li>2.7. Спам, фишинговые ссылки и рекламу любых товаров, услуг или ресурсов без предварительного согласования с администрацией.</li>
+      <li>2.8. Персональные данные третьих лиц (адреса, телефоны, документы, личные переписки) без их согласия.</li>
     </ul>
 
-    <h4 class="rules-sec-title">3. Права и ответственность администрации</h4>
+    <h4 class="rules-sec-title">3. Запрещённые действия</h4>
     <ul class="rules-list">
-      <li>3.1. Администрация не несет ответственности за содержание пользовательских публикаций, возможную потерю данных или любые убытки, возникшие в ходе использования сервиса.</li>
-      <li>3.2. Администрация и модераторы имеют право без предварительного предупреждения и объяснения причин удалять любые файлы, сообщения или блокировать учетные записи при нарушении данных правил.</li>
+      <li>3.1. Накрутка просмотров, лайков, реакций, голосов и комментариев, использование ботов и любые другие формы искусственного повышения активности.</li>
+      <li>3.2. Любые попытки обойти, протестировать или взломать защиту сайта, вмешаться в его работу, скрейпинг данных.</li>
+      <li>3.3. Обход блокировок, в том числе создание нового аккаунта после бана.</li>
+      <li>3.4. Ложные жалобы и массовая отправка жалоб на чужой контент без причины.</li>
+    </ul>
+
+    <h4 class="rules-sec-title">4. Отметка «Не для стрима»</h4>
+    <ul class="rules-list">
+      <li>4.1. Отметка «Не для стрима» ставится при публикации поста. Такой пост скрывается размытием, пока зритель сам не нажмёт «показать».</li>
+      <li>4.2. Ставьте её на контент, который разрешён на сайте, но который нельзя показывать в прямом эфире, например из-за правил Twitch или других площадок.</li>
+      <li>4.3. Отметка не делает допустимым то, что запрещено разделом 2. Контент 18+ с этой отметкой всё равно будет удалён.</li>
+      <li>4.4. Если вы не поставили отметку там, где она нужна, модератор может поставить её сам или удалить пост.</li>
+    </ul>
+
+    <h4 class="rules-sec-title">5. Жалобы и модерация</h4>
+    <ul class="rules-list">
+      <li>5.1. Пожаловаться на пост, комментарий или пользователя можно кнопкой жалобы на сайте либо написав в Telegram @w0kky.</li>
+      <li>5.2. Администрация рассматривает жалобы и по итогам может: удалить контент, поставить отметку «Не для стрима», выдать предупреждение, временно или навсегда заблокировать аккаунт.</li>
+      <li>5.3. Нарушения, связанные с незаконными материалами, могут быть переданы правоохранительным органам.</li>
+    </ul>
+
+    <h4 class="rules-sec-title">6. Ответственность администрации</h4>
+    <ul class="rules-list">
+      <li>6.1. Администрация не отвечает за содержание пользовательских публикаций, возможную потерю данных или убытки, возникшие при использовании сервиса.</li>
+      <li>6.2. Как мы обрабатываем ваши данные, написано в разделе «Конфиденциальность». Запросить удаление данных можно в Telegram @w0kky из аккаунта, о котором идёт речь.</li>
     </ul>
 
     <button class="gb-send-btn" style="width: 100%; padding: 14px; margin-top: 15px; font-size: 13px; text-align: center;" onclick="closeRulesModal()">Закрыть</button>
@@ -838,13 +984,13 @@
       <button class="support-close-btn" onclick="closeSupportModal()">✕</button>
     </div>
     <div class="support-info-box">Если вам нужна помощь или вы заметили ошибку на сайте, пожалуйста, свяжитесь с нами.</div>
-    <a href="https://t.me/Discoragen" target="_blank" class="support-card-btn telegram">
+    <a href="https://t.me/w0kky" target="_blank" rel="noopener noreferrer" class="support-card-btn telegram">
       <div class="support-icon-box">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .53-1.42.52-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.24.38-.49 1.07-.75 4.19-1.82 6.98-3.02 8.38-3.6 3.98-1.66 4.81-1.95 5.35-1.96.12 0 .38.03.55.17.14.12.18.28.2.4.02.13.01.27 0 .38z"/></svg>
       </div>
       <div class="support-btn-content">
         <div class="support-btn-title">Связь в Telegram</div>
-        <div class="support-btn-desc">Написать в поддержку @Discoragen</div>
+        <div class="support-btn-desc">Написать в поддержку @w0kky</div>
       </div>
     </a>
   </div>
@@ -918,7 +1064,7 @@
       <div style="font-size: 11px; color: var(--muted); margin-top: 12px;">После оплаты вернитесь на эту страницу и нажмите кнопку ниже, чтобы мы отметили ваш донат.</div>
 
       <button class="gb-send-btn" style="width: 100%; padding: 12px; font-size: 13px; margin-top: 14px;" onclick="confirmDonateDone()">Я перевёл(а), готово</button>
-      <div style="font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center;">Остались вопросы? Пишите в Telegram — <a href="https://t.me/Discoragen" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: 700;">@Discoragen</a></div>
+      <div style="font-size: 11px; color: var(--muted); margin-top: 10px; text-align: center;">Остались вопросы? Пишите в Telegram — <a href="https://t.me/w0kky" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-weight: 700;">@w0kky</a></div>
     </div>
   </div>
 </div>
@@ -959,8 +1105,8 @@
       </div>
     </div>
 
-    <label class="form-label-txt">Ссылка на видео (YouTube)</label>
-    <input type="text" id="suggestVideoUrl" class="modal-input" placeholder="https://www.youtube.com/watch?v=..." oninput="handleVideoUrlInput(this.value)" />
+    <label class="form-label-txt">Ссылка на видео (YouTube, RUTUBE или TikTok)</label>
+    <input type="text" id="suggestVideoUrl" class="modal-input" placeholder="https://www.youtube.com / rutube.ru / tiktok.com/..." oninput="handleVideoUrlInput(this.value)" />
 
     <label class="form-label-txt">Категория</label>
     <div class="categories-select-grid" id="suggestCategoryGrid">
@@ -1017,7 +1163,7 @@
         <div class="activity-value" id="statGamesCount">3</div>
         <div class="activity-label">Игры</div>
       </div>
-      <div class="activity-card" style="cursor: pointer;" onclick="openAccountSettingsModal('activity')" title="Посмотреть историю активности">
+      <div class="activity-card" style="cursor: pointer;" onclick="openMyProfileModal()" title="Посмотреть свой профиль и публикации">
         <div class="activity-value" id="statViewsCount">1.4 тыс.</div>
         <div class="activity-label">Просмотров</div>
       </div>
@@ -1037,7 +1183,7 @@
       </div>
 
       <div class="gb-input-row">
-        <input type="text" id="gbInput" class="gb-input" placeholder="Войдите в аккаунт, чтобы писать в гостевой книге" maxlength="200" autocomplete="off" disabled />
+        <input type="text" id="gbInput" class="gb-input" placeholder="Войдите в аккаунт, чтобы писать в гостевой книге" maxlength="100" autocomplete="off" disabled />
         <button class="gb-send-btn" id="gbSendBtn" disabled>Отправить</button>
       </div>
 
@@ -1123,34 +1269,41 @@
       <p class="community-desc">Загружайте видео, фото или аудио в общую ленту платформы.</p>
     </div>
 
-    <div class="guestbook-section newpost-card">
-      <div class="newpost-layout">
-        <div id="dropZone" class="newpost-dropzone" onclick="triggerNewPostFileInput()" ondragover="handleNewPostDragOver(event)" ondragleave="handleNewPostDragLeave(event)" ondrop="handleNewPostFileDrop(event)">
-          <div class="newpost-dropzone-icon newpost-folder-icon">
-            <div class="npf-file">
-              <div class="npf-work npf-work-5"></div>
-              <div class="npf-work npf-work-4"></div>
-              <div class="npf-work npf-work-3"></div>
-              <div class="npf-work npf-work-2"></div>
-              <div class="npf-work npf-work-1"></div>
-            </div>
-          </div>
-          <div class="newpost-dropzone-title">Выберите видео, фото или аудио</div>
-          <div class="newpost-dropzone-hint">Или перетащите файл сюда · можно выбрать сразу несколько фото для альбома<br>Максимальный размер: 200 МБ</div>
-          <button type="button" class="gb-send-btn newpost-choose-btn">Выбрать файл(ы)</button>
-          <div id="newPostFileIndicator" class="newpost-file-indicator" style="display: none;"></div>
-        </div>
-        <input type="file" id="newPostFileInput" accept="image/*,video/*,audio/*" multiple style="display:none;" onchange="handleNewPostFileSelect(event)">
+    <div class="newpost-stack">
+      <div class="newpost-layer newpost-layer-back"></div>
+      <div class="newpost-layer newpost-layer-front"></div>
 
-        <div class="newpost-fields">
-          <div>
-            <label class="form-label-txt">Название публикации*</label>
-            <input type="text" id="newPostTitle" class="modal-input newpost-input" placeholder="Введите название..." />
+      <div class="guestbook-section newpost-card">
+        <div class="newpost-layout">
+          <div id="dropZone" class="newpost-dropzone" onclick="triggerNewPostFileInput()" ondragover="handleNewPostDragOver(event)" ondragleave="handleNewPostDragLeave(event)" ondrop="handleNewPostFileDrop(event)">
+            <span class="npx-folder" aria-hidden="true">
+              <span class="npx-folder__shape">
+                <span class="npx-folder__back"></span>
+                <span class="npx-folder__papers">
+                  <span class="npx-paper npx-paper--1"></span>
+                  <span class="npx-paper npx-paper--2"></span>
+                  <span class="npx-paper npx-paper--3"></span>
+                </span>
+                <span class="npx-folder__front"></span>
+              </span>
+            </span>
+            <div class="newpost-dropzone-title">Перетащите свой файл</div>
+            <div class="newpost-dropzone-hint">JPEG, PNG, MP3, MP4 форматы</div>
+            <div class="newpost-dropzone-hint">Максимальный размер файла: 200 МБ</div>
+            <button type="button" class="newpost-choose-btn">Выбрать файл</button>
+            <div id="newPostFileIndicator" class="newpost-file-indicator" style="display: none;"></div>
           </div>
-          <div>
-            <label class="form-label-txt">Описание</label>
-            <div class="newpost-desc-wrap">
-              <textarea id="newPostDesc" class="suggest-textarea newpost-textarea" placeholder="Добавьте описание файла или вставьте ссылку на видео..."></textarea>
+          <input type="file" id="newPostFileInput" accept="image/*,video/*,audio/*" multiple style="display:none;" onchange="handleNewPostFileSelect(event)">
+
+          <div class="newpost-fields">
+            <div>
+              <label class="form-label-txt">Название публикации*</label>
+              <input type="text" id="newPostTitle" class="modal-input newpost-input" placeholder="Введите название..." />
+            </div>
+            <div>
+              <label class="form-label-txt">Описание</label>
+              <div class="newpost-desc-wrap">
+                <textarea id="newPostDesc" class="suggest-textarea newpost-textarea" placeholder="Добавьте описание файла или вставьте ссылку на видео..."></textarea>
               <div class="comment-emoji-picker-container newpost-emoji-picker-container">
                 <button type="button" class="comment-emoji-btn" onclick="toggleNewPostEmojiPicker()" title="Добавить эмодзи">
                   <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
@@ -1171,25 +1324,34 @@
                   <button type="button" class="picker-emoji-opt" onclick="insertNewPostEmoji('💯')">💯</button>
                 </div>
               </div>
+              </div>
             </div>
-          </div>
-          <div>
-            <label class="form-label-txt">Тип доступа</label>
-            <div class="newpost-access-row">
-              <button type="button" class="category-tag selected newpost-access-btn" id="accessPubBtn" onclick="setAccessType('pub')">Опубликовать в ленту</button>
-              <button type="button" class="category-tag newpost-access-btn" id="accessLinkBtn" onclick="setAccessType('link')">Доступ по ссылке</button>
+            <div>
+              <label class="form-label-txt">Тип доступа</label>
+              <div class="newpost-access-row">
+                <button type="button" class="category-tag selected newpost-access-btn" id="accessPubBtn" onclick="setAccessType('pub')">
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3" fill="currentColor"></circle></svg>
+                  Опубликовать в ленту
+                </button>
+                <button type="button" class="category-tag newpost-access-btn" id="accessLinkBtn" onclick="setAccessType('link')">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="4" y="10" width="16" height="12" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke-width="2.4" stroke-linecap="round"></path></svg>
+                  Доступ по ссылке
+                </button>
+              </div>
+              <div class="newpost-access-hint" id="accessHint">Пост появится в общей ленте.</div>
+              <div class="newpost-nsfw-toggle" title="Пост будет размыт, пока зритель не нажмёт «показать». Отметьте, если контент нельзя показывать на стриме">
+                <button type="button" class="np-switch" id="nsfwToggleBtn" role="switch" aria-checked="false" aria-label="Не для стрима" onclick="toggleNsfwFlag()"><span class="np-switch-knob"></span></button>
+                <span class="np-switch-label" onclick="toggleNsfwFlag()">Не для стрима</span>
+              </div>
             </div>
-            <div class="newpost-nsfw-toggle">
-              <button type="button" class="category-tag newpost-nsfw-btn" id="nsfwToggleBtn" onclick="toggleNsfwFlag()" title="Пост будет размыт цензурой, пока зритель не нажмёт «показать»">🔞 18+ контент (цензура)</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="newpost-submit-wrap">
-        <button type="button" class="gb-send-btn newpost-submit-btn" onclick="submitNewPost()">Опубликовать</button>
-        <div class="newpost-rules-hint">
-          Публикуйте медиаконтент соблюдая <a href="#" onclick="event.preventDefault(); openRulesModal()" style="color: var(--accent); text-decoration: none;">правила сайта</a>
+            <div class="newpost-submit-wrap">
+              <button type="button" id="newPostSubmitBtn" class="newpost-submit-btn is-empty" onclick="submitNewPost()">Добавьте файл</button>
+              <div class="newpost-rules-hint">
+                Загружайте контент соблюдая <a href="#" onclick="event.preventDefault(); openRulesModal()">правила сайта</a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1333,6 +1495,13 @@
         <span class="settings-row-label" id="settingsAuthLabel">Войти / Профиль</span>
       </button>
 
+      <button type="button" class="settings-row-btn" onclick="event.stopPropagation(); openSettingsModal('hidden')">
+        <span class="settings-row-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        </span>
+        <span class="settings-row-label">Скрытые авторы</span>
+      </button>
+
       <a href="https://t.me/ObshazhnyaApp_Bot" target="_blank" rel="noopener" class="settings-row-btn" style="text-decoration:none;">
         <span class="settings-row-icon">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.05 2.31 2.87 9.4c-1.24.5-1.23 1.19-.23 1.5l4.66 1.46 1.8 5.6c.22.6.36.85.75.85.3 0 .43-.14.6-.3l1.7-1.65 3.6 2.66c.66.37 1.14.18 1.3-.6l2.37-11.2c.24-1-.36-1.44-1.24-1.4zM9.6 13.86l7.6-6.53c.34-.28-.07-.42-.5-.16l-9.4 5.93-1.83-.6c-.4-.13-.4-.4.08-.6l7.14-2.75c.33-.13.63.08.5.6l-1.2 6.6c-.09.44-.35.55-.7.34l-1.94-1.43-.94.9c-.1.1-.19.19-.4.19z"/></svg>
@@ -1459,7 +1628,7 @@
           <span><b id="modalUserPostsCountHidden">0</b> публикаций</span>
         </div>
         <div class="np-profile-details" id="npProfileDetails">
-          <span id="modalUserHandle">@Discoragen</span>
+          <span id="modalUserHandle">@w0kky</span>
           <span class="np-detail-sep" id="tgBioBlock" style="display:none;">·</span>
           <span id="modalUserBio"></span>
           <span class="np-detail-sep" id="tgBirthdayBlock" style="display:none;">·</span>
@@ -1489,6 +1658,9 @@
         <div class="np-profile-tabs">
           <button class="np-profile-tab active" id="npTabPosts" onclick="switchProfilePostsTab('posts')">Посты</button>
           <button class="np-profile-tab" id="npTabHidden" onclick="switchProfilePostsTab('hidden')">Скрытые</button>
+          <button class="np-profile-tab" id="npTabSaved" onclick="switchProfilePostsTab('saved')">Сохранённые</button>
+          <button class="np-profile-tab" id="npTabRatings" onclick="switchProfilePostsTab('ratings')">Оценки</button>
+          <button class="np-profile-tab" id="npTabComments" onclick="switchProfilePostsTab('comments')">Комментарии</button>
         </div>
         <div class="np-filter-wrap">
           <button type="button" class="np-filter-toggle-btn" id="npFilterToggleBtn" onclick="toggleProfileFilterPanel()">
@@ -1533,7 +1705,7 @@
         </div>
         <div class="np-filter-divider"></div>
         <div class="np-filter-section">
-          <div class="np-filter-label">Цензура <span class="np-filter-help" title="Скрывать 18+ контент">?</span></div>
+          <div class="np-filter-label">Не для стрима <span class="np-filter-help" title="Скрывать посты с отметкой «Не для стрима»">?</span></div>
           <div class="np-filter-pills">
             <button type="button" class="np-filter-pill" onclick="setProfileFilter('censor','on',this)">Включена</button>
             <button type="button" class="np-filter-pill active" onclick="setProfileFilter('censor','off',this)">Выключена</button>
@@ -1549,16 +1721,18 @@
     <div class="footer-grid">
       <div class="footer-col">
         <div class="footer-label">ПОДДЕРЖКА</div>
-        <a href="https://t.me/Discoragen" target="_blank" class="footer-val">Discoragen</a>
+        <a href="https://t.me/w0kky" target="_blank" rel="noopener noreferrer" class="footer-val">w0kky</a>
       </div>
       <div class="footer-col">
         <div class="footer-label">РАЗРАБОТКА</div>
-        <a href="https://t.me/Discoragen" target="_blank" class="footer-val">Discoragen</a>
+        <a href="https://t.me/w0kky" target="_blank" rel="noopener noreferrer" class="footer-val">w0kky</a>
         <a href="#" class="footer-rules" onclick="event.preventDefault(); openRulesModal()">Правила сайта</a>
+        <a href="#" class="footer-rules" onclick="event.preventDefault(); openPrivacyModal()">Конфиденциальность</a>
+        <a href="#" class="footer-rules" onclick="event.preventDefault(); openCookieSettings()">Настройки куки</a>
       </div>
       <div class="footer-col">
         <div class="footer-label">ДИЗАЙН</div>
-        <a href="https://t.me/Discoragen" target="_blank" class="footer-val">Discoragen</a>
+        <a href="https://t.me/w0kky" target="_blank" rel="noopener noreferrer" class="footer-val">w0kky</a>
       </div>
     </div>
 
@@ -1618,6 +1792,7 @@
  <div id="toast-container" class="toast-container"></div>
 
 <script src="script.js"></script>
+<script src="consent.js"></script>
 
 <!-- PWA: регистрация service worker + логика кнопки "Установить приложение" -->
 <script>
