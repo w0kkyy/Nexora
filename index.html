@@ -18,13 +18,13 @@
 -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
-  script-src 'self' 'unsafe-inline' https://telegram.org https://www.gstatic.com;
+  script-src 'self' 'unsafe-inline' https://telegram.org https://oauth.telegram.org https://www.gstatic.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src https://fonts.gstatic.com;
   img-src 'self' data: https:;
   media-src 'self' data: https:;
   connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://telegram.org https://oauth.telegram.org;
-  frame-src https://oauth.telegram.org;
+  frame-src https://oauth.telegram.org https://telegram.org;
   object-src 'none';
   base-uri 'self';
 ">
